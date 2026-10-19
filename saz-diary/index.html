@@ -465,6 +465,7 @@ function askToken(prompt){
     client_id: CLIENT_ID, scope: SCOPE,
     callback: r => {
       if (r.error) { driveErr = "Google Drive sign-in didn't finish. Tap Sync now to try again."; showBackupState(); return resolveToken(null); }
+      if (google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) { tokenClient = null; driveErr = "Drive access wasn't allowed. Tap Sync now and tick the Google Drive box."; showBackupState(); return resolveToken(null); }
       token = r.access_token; tokenExp = Date.now() + ((r.expires_in || 3600) - 120) * 1000; driveErr = ""; resolveToken(token);
     },
     error_callback: () => { driveErr = "Google Drive sign-in was closed or blocked. Tap Sync now to reconnect."; showBackupState(); resolveToken(null); }
@@ -483,7 +484,7 @@ $("driveBtn").onclick = async () => {
   if (!navigator.onLine) { driveErr = "You're offline. Connect to the internet, then tap again."; return showBackupState(); }
   if (!gsiLoaded()) { $("driveBtn").textContent = "Loading…"; try { await loadGsi(); } catch(e) { driveErr = e.message; return showBackupState(); } $("driveBtn").textContent = "Tap again to connect"; return; }
   if (haveToken()) return syncNow();
-  const t = await askToken(driveOn ? "" : "consent");
+  const t = await askToken(driveOn && !/tick the Google Drive box/.test(driveErr) ? "" : "consent");
   if (!t) return;
   if (!driveOn) { driveOn = true; await idb.set("meta:drive", true); }
   syncNow();
@@ -493,7 +494,12 @@ function scheduleDrive(){ if (!driveOn) return; clearTimeout(driveTimer); driveT
 
 async function gfetch(url, opts = {}){
   const res = await fetch(url, Object.assign({}, opts, {headers: Object.assign({Authorization: "Bearer " + token}, opts.headers || {})}));
-  if (!res.ok && res.status !== 404) throw Object.assign(new Error("Google Drive replied " + res.status), {status: res.status});
+  if (!res.ok && res.status !== 404) {
+    let why = ""; try { const j = await res.json(); why = (j.error && (j.error.message || j.error.status)) || ""; } catch(_) {}
+    if (/has not been used|is disabled|accessNotConfigured/i.test(why)) why = "The Google Drive API is turned off in your Google Cloud project. Enable it, then tap Sync now.";
+    else if (/insufficient|scope/i.test(why)) why = "Drive access wasn't allowed. Tap Sync now and tick the Google Drive box.";
+    throw Object.assign(new Error(why || ("Google Drive replied " + res.status)), {status: res.status});
+  }
   return res;
 }
 
@@ -530,6 +536,7 @@ async function syncNow(){
     lastSync = Date.now(); await idb.set("meta:lastBackup", lastSync); driveErr = "";
   } catch(e) {
     if (e.status === 401) { token = null; driveErr = "Tap Sync now to reconnect Google Drive."; }
+    else if (/tick the Google Drive box/.test(e.message)) { token = null; tokenClient = null; driveErr = e.message; }
     else driveErr = navigator.onLine ? (e.message || "Google Drive sync failed.") : "";
   } finally {
     syncing = false; showBackupState();
