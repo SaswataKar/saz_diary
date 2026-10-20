@@ -175,3 +175,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* ---------- The quill that follows your words ---------- */
+.quill{position:absolute;left:0;top:0;width:64px;height:78px;z-index:2;pointer-events:none;opacity:0;
+  transition:transform .16s cubic-bezier(.3,.7,.3,1),opacity .5s ease;filter:drop-shadow(1px 3px 2px var(--shadow))}
+.quill.show{opacity:1}
+.quill svg{width:100%;height:100%;overflow:visible;transform-origin:5px 73px}
+.quill.writing svg{animation:quillWrite .22s ease-in-out infinite alternate}
+@keyframes quillWrite{from{transform:rotate(-7deg) translate(-1px,1px)}to{transform:rotate(5deg) translate(2px,-2px)}}
+.quill .vane{fill:#fbf6ea;stroke:#8a6a3e;stroke-width:1}
+.quill .barbs{fill:none;stroke:#b79a6c;stroke-width:.8;stroke-linecap:round}
+.quill .shaft{fill:none;stroke:#7a5a34;stroke-width:1.6;stroke-linecap:round}
+.quill .nib{fill:#2a1a0c}
+.quill::after{content:"";position:absolute;left:2px;top:72px;width:5px;height:5px;border-radius:50%;background:var(--ink);opacity:0}
+.quill.writing::after{animation:inkDrop .44s ease-out infinite}
+@keyframes inkDrop{0%{opacity:.8;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}
