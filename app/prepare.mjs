@@ -62,7 +62,11 @@ if (!manifest.includes("RECORD_AUDIO")) {
 }
 fs.writeFileSync(manifestPath, manifest);
 
-// 4. Version number from the build run, and release signing from environment variables
+// 4. Google sign-in for Drive backup (native code lives in app/native)
+const javaDir = path.join(android, "app/src/main/java/com/saz/diary");
+for (const f of ["DriveAuthPlugin.java", "MainActivity.java"]) fs.copyFileSync(path.join("native", f), path.join(javaDir, f));
+
+// 5. Version number from the build run, and release signing from environment variables
 const gradlePath = must(path.join(android, "app/build.gradle"));
 let gradle = fs.readFileSync(gradlePath, "utf8");
 const run = parseInt(process.env.BUILD_NUMBER || "1", 10);
@@ -87,5 +91,10 @@ android {
 }
 `;
 }
+gradle += `
+dependencies {
+    implementation "com.google.android.gms:play-services-auth:21.3.0"
+}
+`;
 fs.writeFileSync(gradlePath, gradle);
 console.log("Prepared Saz's Diary: version 1." + run + (process.env.KS_PATH ? ", signed" : ", unsigned"));
