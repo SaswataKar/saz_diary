@@ -244,6 +244,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .vault.unbolt .bolt{transform:translateY(30px)}
 .vault .core{transition:filter .5s}
 .vault.unbolt .core{filter:drop-shadow(0 0 16px #ff9a5a) brightness(1.35)}
-.vault .core-s{font:46px var(--f-display);fill:rgba(60,6,6,.65)}
+.vault .core-rune{fill:none;stroke:#f2d58e;stroke-width:5.5;stroke-linecap:round;stroke-linejoin:miter;filter:drop-shadow(0 0 3px rgba(255,200,100,.8));transition:stroke .4s,filter .4s}
+.vault.unbolt .core-rune{stroke:#fff3cf;filter:drop-shadow(0 0 10px #ffd27a)}
 .vault .seam{stroke:rgba(255,220,140,0);stroke-width:2;transition:stroke .4s}
 .vault.unbolt .seam{stroke:rgba(255,220,140,.95);filter:drop-shadow(0 0 6px #ffd27a)}

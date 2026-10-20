@@ -42,7 +42,7 @@
       pts.push({x: c, y: c});
     }
     function hit(x, y) {
-      const R = W * .085;
+      const R = W * .1;
       for (let k = 0; k < 9; k++) { const p = pts[k]; if ((p.x - x) ** 2 + (p.y - y) ** 2 < R * R && !seq.includes(k)) return k; }
       return -1;
     }
@@ -52,31 +52,54 @@
         sparks.push({x: pts[k].x, y: pts[k].y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 30 + Math.random() * 20}); }
       if (navigator.vibrate) try { navigator.vibrate(8); } catch (e) {}
     }
-    function pos(e) { const r = canvas.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return {x: t.clientX - r.left, y: t.clientY - r.top}; }
+    function pos(e) { const r = canvas.getBoundingClientRect(); const t = e.touches && e.touches.length ? e.touches[0] : e;
+      return {x: (t.clientX - r.left) * (W / (r.width || W)), y: (t.clientY - r.top) * (W / (r.height || W))}; }
+    let trail = [], last = null, pointerId = null;
+    function sweep(a, b) {                                   // pick up runes crossed between two finger samples
+      const d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(d / 6));
+      for (let t = 1; t <= n; t++) { const k = hit(a.x + (b.x - a.x) * t / n, a.y + (b.y - a.y) * t / n); if (k >= 0) add(k); }
+    }
     function down(e) {
-      if (!enabled) return; e.preventDefault(); drawing = true; seq = []; fizzle = 0;
-      const p = pos(e); finger = p; const k = hit(p.x, p.y); if (k >= 0) add(k); loop();
+      if (!enabled) return;
+      if (e.cancelable) e.preventDefault();
+      if (e.pointerId !== undefined) { pointerId = e.pointerId; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+      drawing = true; seq = []; fizzle = 0;
+      const p = pos(e); finger = p; last = p; trail = [p];
+      const k = hit(p.x, p.y); if (k >= 0) add(k); loop();
     }
     function move(e) {
-      if (!drawing) return; e.preventDefault();
-      const p = pos(e); finger = p; const k = hit(p.x, p.y); if (k >= 0) add(k);
-      if (!RM && Math.random() < .6) sparks.push({x: p.x, y: p.y, vx: (Math.random() - .5) * .8, vy: -Math.random() * 1.2, life: 22});
+      if (!drawing) return;
+      if (e.pointerId !== undefined && pointerId !== null && e.pointerId !== pointerId) return;
+      if (e.cancelable) e.preventDefault();
+      const p = pos(e); finger = p;
+      if (last) sweep(last, p); last = p;
+      trail.push(p); if (trail.length > 24) trail.shift();
+      if (!RM && Math.random() < .7) sparks.push({x: p.x, y: p.y, vx: (Math.random() - .5) * .8, vy: -Math.random() * 1.2, life: 22});
+      loop();
     }
     function up() {
-      if (!drawing) return; drawing = false; finger = null;
+      if (!drawing) return; drawing = false; finger = null; last = null; trail = []; pointerId = null;
       const s = seq.slice();
       if (s.length >= 4) onSpell(s.join("-")); else if (s.length) api.fizzle("A spell needs at least 4 runes.");
     }
-    canvas.addEventListener("touchstart", down, {passive: false});
-    canvas.addEventListener("touchmove", move, {passive: false});
-    canvas.addEventListener("touchend", up);
-    canvas.addEventListener("mousedown", down);
-    root.addEventListener("mousemove", move);
-    root.addEventListener("mouseup", up);
+    if (root.PointerEvent) {
+      canvas.addEventListener("pointerdown", down);
+      canvas.addEventListener("pointermove", move);
+      canvas.addEventListener("pointerup", up);
+      canvas.addEventListener("pointercancel", up);
+    } else {
+      canvas.addEventListener("touchstart", down, {passive: false});
+      canvas.addEventListener("touchmove", move, {passive: false});
+      canvas.addEventListener("touchend", up);
+      canvas.addEventListener("mousedown", down);
+      root.addEventListener("mousemove", move);
+      root.addEventListener("mouseup", up);
+    }
 
     function frame() {
       raf = 0;
-      if (!canvas.isConnected || canvas.offsetParent === null) return;
+      if (!canvas.isConnected) return;
+      if (!canvas.clientWidth) { if (drawing) loop(); return; }
       if (W !== canvas.clientWidth) layout();
       const c = W / 2;
       cx.clearRect(0, 0, W, W);
@@ -97,6 +120,20 @@
           if (finger && drawing) cx.lineTo(finger.x, finger.y);
           cx.stroke();
         }
+      }
+      // wand trail: follows the finger from the first touch
+      if (drawing && trail.length > 1) {
+        cx.lineCap = "round"; cx.lineJoin = "round";
+        for (let k = 1; k < trail.length; k++) {
+          const a = k / trail.length;
+          cx.strokeStyle = `rgba(255,226,150,${a * .85})`; cx.lineWidth = 1 + a * 4;
+          cx.beginPath(); cx.moveTo(trail[k - 1].x, trail[k - 1].y); cx.lineTo(trail[k].x, trail[k].y); cx.stroke();
+        }
+      }
+      if (drawing && finger) {
+        const fg = cx.createRadialGradient(finger.x, finger.y, 0, finger.x, finger.y, 18);
+        fg.addColorStop(0, "rgba(255,240,190,.95)"); fg.addColorStop(1, "rgba(255,200,90,0)");
+        cx.fillStyle = fg; cx.beginPath(); cx.arc(finger.x, finger.y, 18, 0, 6.29); cx.fill();
       }
       // runes
       for (let k = 0; k < 9; k++) {
@@ -158,7 +195,7 @@
       <g class="ring r3"><circle r="72" fill="#2a312b" stroke="rgba(214,173,87,.45)" stroke-width="2"/>
         ${Array.from({length: 8}, (_, k) => `<path transform="rotate(${k * 45})" d="M0 -70 L0 -50" stroke="rgba(214,173,87,.6)" stroke-width="2"/>`).join("")}</g>
       <circle class="core" r="40" fill="url(#vCore)" stroke="rgba(0,0,0,.4)" stroke-width="4"/>
-      <text class="core-s" y="15" text-anchor="middle">S</text>
+      <path class="core-rune" d="M12 -26 L-12 -7 L12 7 L-12 26"/>
       <line class="seam" x1="0" y1="-200" x2="0" y2="200"/>
     </svg>`;
     return `<div class="vault-half left">${svg}</div><div class="vault-half right">${svg}</div><div class="vault-light"></div>`;

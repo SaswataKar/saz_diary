@@ -857,7 +857,9 @@ if (NG) {
     $("spellBtn").textContent = sp ? "Remove spell" : "Set up a spell";
     $("spellBtn").hidden = guard.biometric !== "ready" && !sp;
     $("spellState").textContent = sp ? "Spell on: fingerprint, then draw your spell. The spell is sealed inside this phone's security chip."
-      : guard.biometric === "ready" ? "Draw a spell across the runes instead of typing your passphrase on this phone." : "";
+      : guard.biometric === "ready" ? "Draw a spell across the runes instead of typing your passphrase on this phone."
+      : guard.biometric === "none_enrolled" ? "To use a spell, first add a fingerprint in your phone's Settings → Security."
+      : "Spells need a strong fingerprint sensor, and this phone's isn't one Android allows for sealing secrets. Fingerprint + passphrase still protect the diary.";
     const wrap = await idb.get("meta:voiceWrap").catch(() => null);
     $("voiceSetup").textContent = wrap ? "Turn off voice passphrase" : "Set up voice passphrase";
     $("voiceSetup").hidden = !guard.onDeviceSpeech && !wrap;
