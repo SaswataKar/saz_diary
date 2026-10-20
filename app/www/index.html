@@ -156,7 +156,7 @@ button{font:inherit;cursor:pointer}
   .card{border:1px solid var(--paper-edge);background:color-mix(in srgb,var(--brass) 7%,var(--paper));border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
   .card .backup{gap:8px}
   .card .backup .ghost{flex:1;height:42px;font-size:13px}
-  #exportBtn{background:var(--brass);color:#1b1a14;border-color:var(--brass);font-weight:500}
+  #driveBtn{flex-basis:100%;background:var(--brass);color:#1b1a14;border-color:var(--brass);font-weight:500}
   #lock{height:44px;font-size:13px}
 }
 .toc .pv{display:none}
@@ -165,6 +165,9 @@ button{font:inherit;cursor:pointer}
 .backup{display:flex;flex-wrap:wrap;gap:6px}
 .backup .ghost{flex:1 1 auto}
 .ok{color:var(--ink-soft)} .warn{color:#b0563b}
+.gstep{display:flex;flex-direction:column;gap:14px;width:100%;position:relative;z-index:1;align-items:center}
+.btn-google{width:100%;background:#f6efdc;color:#1d2a44;border:0;border-radius:6px;padding:14px;font:500 15px var(--f-mono)}
+.gstep .msg{min-height:0}
 .restore{background:none;border:0;color:#efe6cf;text-decoration:underline;font-size:12px;position:relative;z-index:1}
 </style>
 </head>
@@ -174,6 +177,11 @@ button{font:inherit;cursor:pointer}
     <div class="clasp" aria-hidden="true"></div>
     <div class="sub">Private · Encrypted · Offline</div>
     <h1>Saz's Diary</h1>
+    <div class="gstep" id="gstep" hidden>
+      <button class="btn-google" id="gsignin" type="button">Continue with Google</button>
+      <div class="msg" id="gmsg">Sign in with your Gmail so the diary backs up to your Google Drive by itself. Next you'll set or enter your passphrase.</div>
+      <button class="restore" id="gskip" type="button">Use without Google for now</button>
+    </div>
     <form class="lockform" id="lockform" autocomplete="off">
       <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
       <input id="pass2" type="password" placeholder="Type it again" aria-label="Confirm passphrase" hidden>
@@ -196,7 +204,7 @@ button{font:inherit;cursor:pointer}
         <span class="eyebrow">Backups</span>
         <div class="backup">
           <button class="ghost" id="driveBtn" type="button" hidden>Connect Google Drive</button>
-          <button class="ghost" id="exportBtn" type="button">Save to Drive</button>
+          <button class="ghost" id="exportBtn" type="button">Share a copy</button>
           <button class="ghost" id="linkBtn" type="button" hidden>Auto-save to a Drive file</button>
           <button class="ghost" id="importBtn" type="button">Restore</button>
         </div>
@@ -280,12 +288,15 @@ async function boot(){
   lockDoc = await idb.get("lock");
   driveOn = !!(await idb.get("meta:drive").catch(() => false));
   lastSync = (await idb.get("meta:lastBackup").catch(() => 0)) || 0;
-  if (driveOn && navigator.onLine) loadGsi().catch(() => {});
+  if (driveOn && navigator.onLine && !NDA) loadGsi().catch(() => {});
+  gEmail = (await idb.get("meta:gEmail").catch(() => "")) || "";
+  const askGoogle = !!NDA && !driveOn && !(await idb.get("meta:gSkip").catch(() => false));
+  $("gstep").hidden = !askGoogle; $("lockform").hidden = askGoogle;
   const first = !lockDoc;
   $("pass2").hidden = !first; $("pass2").required = first;
-  $("restoreFirst").hidden = !first;
+  $("restoreFirst").hidden = !first || askGoogle;
   $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
-  $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : "";
+  $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : (driveOn && gEmail ? "Backing up to " + gEmail : "");
 }
 
 $("lockform").addEventListener("submit", async e => {
@@ -412,15 +423,16 @@ async function showBackupState(){
   const last = (await idb.get("meta:lastBackup").catch(() => 0)) || lastSync;
   const linked = await idb.get("meta:fileHandle").catch(() => null);
   const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
-  $("driveBtn").textContent = driveOn ? (syncing ? "Syncing…" : "Sync now") : "Connect Google Drive";
+  $("driveBtn").textContent = driveOn ? (syncing ? "Backing up…" : (NDA ? "Back up now" : "Sync now")) : "Connect Google Drive";
   const el = $("backupState");
   let text = "";
   if (driveOn) {
     text = driveErr || (!navigator.onLine ? "Offline. Pages will sync to Google Drive when you're back online."
-      : lastSync ? "Synced with Google Drive at " + timeOf(lastSync) + "." : "Google Drive connected.");
+      : lastSync ? (NDA ? "Backed up to Google Drive" + (gEmail ? " (" + gEmail + ")" : "") + " at " + timeOf(lastSync) + (days ? ", " + days + (days === 1 ? " day" : " days") + " ago" : "") + ". Every change backs up by itself when you're online."
+                     : "Synced with Google Drive at " + timeOf(lastSync) + ".") : "Google Drive connected.");
   } else {
-    text = (last ? "Last copy saved " + (days === 0 ? "today" : days + (days === 1 ? " day" : " days") + " ago") + "." : "Tap Save to Drive to keep a copy you can see in Google Drive.") +
-      " Android also backs this diary up to your Google account on its own.";
+    text = NDA ? "Not connected to Google Drive. Tap Connect Google Drive so every page backs up by itself."
+      : (last ? "Last copy saved " + (days === 0 ? "today" : days + (days === 1 ? " day" : " days") + " ago") + "." : "Tap Save to Drive to keep a copy you can see in Google Drive.");
   }
   if (linked) text = "Auto-saving to " + linked.name + ". " + text;
   el.className = "where " + ((driveOn && !driveErr) || (days != null && days <= 7) || (isNative && (days == null || days <= 30)) ? "ok" : "warn");
@@ -429,6 +441,8 @@ async function showBackupState(){
 
 const Cap = window.Capacitor, isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const NFS = isNative && Cap.Plugins.Filesystem, NSH = isNative && Cap.Plugins.Share;
+const NDA = isNative && Cap.Plugins.DriveAuth;   // native Google sign-in for Drive
+let gEmail = "";
 $("exportBtn").onclick = async () => {
   await flush();
   if (NFS && NSH) {
@@ -577,8 +591,8 @@ async function gfetch(url, opts = {}){
 async function syncNow(){
   if (!driveOn || !key) return;
   if (!navigator.onLine) { driveErr = ""; return showBackupState(); }
-  if (!haveToken()) { driveErr = "Tap Sync now to reconnect Google Drive."; return showBackupState(); }
   if (syncing) { syncAgain = true; return; }
+  if (!haveToken() && !(NDA && await nativeToken(false))) { driveErr = NDA ? "Tap Back up now to sign in to Google again." : "Tap Sync now to reconnect Google Drive."; return showBackupState(); }
   syncing = true; showBackupState();
   try {
     await flush();
@@ -613,6 +627,68 @@ async function syncNow(){
     syncing = false; showBackupState();
     if (syncAgain) { syncAgain = false; scheduleDrive(); }
   }
+}
+
+/* ---------- Google Drive in the Android app ---------- */
+async function nativeToken(interactive){
+  try {
+    const r = await NDA.authorize({interactive});
+    token = r.accessToken; tokenExp = Date.now() + 45 * 60 * 1000; driveErr = "";
+    if (r.email && r.email !== gEmail) { gEmail = r.email; idb.set("meta:gEmail", gEmail).catch(() => {}); }
+    return token;
+  } catch(e) {
+    if (interactive) driveErr = e && e.code === "cancelled" ? "Google sign-in was cancelled." : "Google sign-in didn't work: " + (e && e.message || e);
+    return null;
+  }
+}
+async function fetchRemote(){
+  const q = encodeURIComponent("name='" + SYNC_NAME + "' and trashed=false");
+  const r = await (await gfetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&spaces=drive&orderBy=modifiedTime%20desc&fields=files(id)")).json();
+  const id = r.files && r.files[0] && r.files[0].id;
+  if (!id) return null;
+  await idb.set("meta:driveFileId", id);
+  const res = await gfetch("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media");
+  return res.ok ? res.json().catch(() => null) : null;
+}
+if (NDA) {
+  $("driveBtn").hidden = false;
+  $("driveBtn").onclick = async () => {
+    if (!navigator.onLine) { driveErr = "You're offline. Connect to the internet, then tap again."; return showBackupState(); }
+    const t = haveToken() ? token : (await nativeToken(false)) || (await nativeToken(true));
+    if (!t) return showBackupState();
+    if (!driveOn) { driveOn = true; await idb.set("meta:drive", true); }
+    syncNow();
+  };
+  $("gsignin").onclick = async () => {
+    const gm = $("gmsg");
+    if (!navigator.onLine) { gm.textContent = "You're offline. Connect to the internet to sign in, or use the diary without Google for now."; return; }
+    $("gsignin").disabled = true;
+    try {
+      const t = await nativeToken(true);
+      if (!t) { gm.textContent = driveErr || "Google sign-in didn't finish."; return; }
+      driveOn = true; await idb.set("meta:drive", true);
+      let found = false;
+      if (!lockDoc) {
+        gm.textContent = "Looking for your diary in Google Drive…";
+        try {
+          const remote = await fetchRemote();
+          if (remote && remote.app === "saz-diary" && remote.lock && remote.entries) {
+            await idb.set("lock", remote.lock);
+            for (const [d, box] of Object.entries(remote.entries)) await idb.set("e-" + d, box);
+            found = true;
+          }
+        } catch(e) { /* nothing in Drive yet, or offline: start fresh */ }
+      }
+      await boot();
+      if (found) $("lockmsg").textContent = "Found your diary in Google Drive. Unlock it with your passphrase.";
+      else if (!lockDoc) $("lockmsg").textContent = "Signed in as " + (gEmail || "your Google account") + ". Now choose a passphrase only you know.";
+      $("pass").focus();
+    } finally { $("gsignin").disabled = false; }
+  };
+  $("gskip").onclick = async () => { await idb.set("meta:gSkip", true); await boot(); };
+  /* Back up whenever the app comes back to the front, and every 15 minutes while it's open */
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && driveOn && key) scheduleDrive(); });
+  setInterval(() => { if (driveOn && key && navigator.onLine) syncNow(); }, 15 * 60 * 1000);
 }
 
 /* ---------- voice ---------- */
