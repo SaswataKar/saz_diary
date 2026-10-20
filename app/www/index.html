@@ -74,13 +74,16 @@ button{font:inherit;cursor:pointer}
 .ghost:hover{border-color:var(--brass)}
 .where{font-size:11px;color:var(--ink-soft);line-height:1.5}
 
-.dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 22px 6px;flex-wrap:wrap}
-.daytitle{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dayhead{display:flex;align-items:center;gap:10px;padding:18px 22px 4px}
+.daytitle{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .daytitle h3{font-family:var(--f-display);font-weight:400;font-size:clamp(20px,3vw,28px);margin:0;text-wrap:balance}
-.nav{display:flex;gap:6px;align-items:center}
-.nav button{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:none;color:var(--ink);font-size:16px}
-.nav button:disabled{opacity:.35;cursor:default}
-.nav .today{width:auto;border-radius:18px;padding:0 12px;font-size:12px}
+.iconbtn{display:none;width:44px;height:44px;flex:none;border:0;border-radius:50%;background:none;color:var(--ink-soft);align-items:center;justify-content:center}
+.iconbtn svg{width:22px;height:22px}
+.iconbtn:active{background:color-mix(in srgb,var(--brass) 18%,transparent)}
+.daynav{display:flex;gap:8px;padding:6px 22px 10px;max-width:420px}
+.daynav button{flex:1;height:36px;border:1px solid var(--rule);border-radius:18px;background:none;color:var(--ink);font:500 12.5px var(--f-mono);letter-spacing:.02em}
+.daynav .today{flex:0 0 auto;padding:0 18px;background:color-mix(in srgb,var(--brass) 16%,transparent);border-color:color-mix(in srgb,var(--brass) 45%,var(--rule))}
+.daynav button:disabled{opacity:.35;cursor:default}
 
 .sheet{flex:1;min-height:0;position:relative;margin:4px 0 0}
 .sheet textarea{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;resize:none;border:0;outline:none;
@@ -92,8 +95,8 @@ button{font:inherit;cursor:pointer}
 .sheet textarea::placeholder{color:var(--ink-soft);opacity:.7}
 .sheet textarea[readonly]{cursor:default}
 
-.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 18px 14px;border-top:1px solid var(--paper-edge);flex-wrap:wrap}
-.mic{display:inline-flex;align-items:center;gap:8px;background:var(--cover);color:#f3e7c4;border:0;border-radius:22px;padding:9px 16px;font-size:13px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px 14px;border-top:1px solid var(--paper-edge)}
+.mic{display:inline-flex;align-items:center;gap:10px;background:var(--cover);color:#f3e7c4;border:0;border-radius:24px;padding:11px 20px;font:500 14px var(--f-mono);flex:none}
 .mic .dot{width:9px;height:9px;border-radius:50%;background:var(--brass)}
 .mic.on .dot{background:#e0524a;animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.3}}
@@ -101,17 +104,63 @@ button{font:inherit;cursor:pointer}
 .status{font-size:11.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .hint{font-size:11.5px;color:var(--ink-soft);max-width:44ch;line-height:1.45}
 
-.menu-btn{display:none}
+/* ---------- Phone: one screen at a time ---------- */
 @media (max-width:760px){
-  body{padding-block:8px;align-items:stretch}
-  .book{grid-template-columns:1fr;height:100%;padding:6px}
-  .left{display:none;border-radius:4px}
+  body{display:block;padding:0}
+  #app{height:100%}
+
+  .cover{position:fixed;inset:0;width:auto;max-width:none;aspect-ratio:auto;border-radius:0;gap:22px;
+    padding:calc(env(safe-area-inset-top,0px) + 40px) 32px calc(env(safe-area-inset-bottom,0px) + 32px) 44px}
+  .cover > *{width:100%;max-width:340px}
+  .cover::after{inset:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px) 28px}
+  .clasp{right:0;width:16px;height:72px;border-radius:8px 0 0 8px}
+  .cover h1{font-size:40px}
+  .lockform{gap:12px}
+  .lockform input{padding:14px;font-size:16px}
+  .btn-brass{padding:14px;font-size:15px}
+  .restore{width:auto;padding:8px}
+
+  .book{position:fixed;inset:0;display:block;width:auto;height:auto;padding:0;border-radius:0;box-shadow:none;background:var(--paper)}
+  .page{position:absolute;inset:0;border-radius:0;box-shadow:none;border:0}
+  .left{display:none}
   .book.show-toc .left{display:flex}
   .book.show-toc .right{display:none}
-  .right{border-radius:4px}
-  .menu-btn{display:inline-flex}
-  .sheet textarea{padding-left:46px;background-image:linear-gradient(90deg,transparent 32px,var(--margin) 32px,var(--margin) 33px,transparent 33px),repeating-linear-gradient(to bottom,transparent 0,transparent 31px,var(--rule) 31px,var(--rule) 32px)}
+
+  .iconbtn{display:inline-flex}
+  .dayhead{padding:calc(env(safe-area-inset-top,0px) + 8px) 6px 2px;gap:4px}
+  .daytitle{align-items:center;text-align:center}
+  .daytitle h3{font-size:21px}
+  .daynav{max-width:none;padding:6px 16px 10px;border-bottom:1px solid var(--paper-edge)}
+
+  .sheet{margin:0}
+  .sheet textarea{font-size:19px;padding:8px 18px 32px 48px;background-position:0 8px;
+    background-image:linear-gradient(90deg,transparent 34px,var(--margin) 34px,var(--margin) 35px,transparent 35px),repeating-linear-gradient(to bottom,transparent 0,transparent 31px,var(--rule) 31px,var(--rule) 32px)}
+
+  .bar{padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 12px)}
+  .status{flex:1;min-width:0}
+  .hint{flex:1}
+
+  /* Contents sheet */
+  .left header{padding:calc(env(safe-area-inset-top,0px) + 8px) 6px 8px 20px;align-items:center;border-bottom:1px solid var(--paper-edge)}
+  .left header .ttl{display:flex;flex-direction:column;gap:2px;flex:1}
+  .left h2{font-size:26px}
+  .toc{padding:4px 0 12px}
+  .toc li{border-bottom:1px solid var(--paper-edge)}
+  .toc button{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:14px 20px;border:0;border-radius:0;font-size:12px}
+  .toc .d{letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .toc .w{grid-row:1;grid-column:2;font-size:11.5px}
+  .toc .pv{grid-column:1 / -1;font:400 17px/1.35 var(--f-hand);color:var(--ink);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .toc .pv.dim{color:var(--ink-soft);font-style:italic}
+  .toc .empty{padding:20px}
+  .left footer{padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 14px);gap:12px;border-top:0}
+  .card{border:1px solid var(--paper-edge);background:color-mix(in srgb,var(--brass) 7%,var(--paper));border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .card .backup{gap:8px}
+  .card .backup .ghost{flex:1;height:42px;font-size:13px}
+  #exportBtn{background:var(--brass);color:#1b1a14;border-color:var(--brass);font-weight:500}
+  #lock{height:44px;font-size:13px}
 }
+.toc .pv{display:none}
+@media (max-width:760px){ .toc .pv{display:-webkit-box} }
 
 .backup{display:flex;flex-wrap:wrap;gap:6px}
 .backup .ghost{flex:1 1 auto}
@@ -137,9 +186,14 @@ button{font:inherit;cursor:pointer}
 
   <section class="book" id="book" hidden aria-label="Diary">
     <aside class="page left">
-      <header><h2>Contents</h2><span class="eyebrow" id="count"></span></header>
+      <header>
+        <div class="ttl"><h2>Contents</h2><span class="eyebrow" id="count"></span></div>
+        <button class="iconbtn" id="tocClose" type="button" aria-label="Back to today's page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
       <ul class="toc" id="toc"></ul>
       <footer>
+        <div class="card">
+        <span class="eyebrow">Backups</span>
         <div class="backup">
           <button class="ghost" id="driveBtn" type="button" hidden>Connect Google Drive</button>
           <button class="ghost" id="exportBtn" type="button">Save to Drive</button>
@@ -147,21 +201,23 @@ button{font:inherit;cursor:pointer}
           <button class="ghost" id="importBtn" type="button">Restore</button>
         </div>
         <div class="where" id="backupState"></div>
+        </div>
         <button class="ghost" id="lock" type="button">Close and lock</button>
       </footer>
     </aside>
     <article class="page right">
       <div class="dayhead">
+        <button class="iconbtn" id="tocbtn" type="button" aria-label="Contents and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
         <div class="daytitle">
           <span class="eyebrow" id="dayno"></span>
           <h3 id="daytitle"></h3>
         </div>
-        <div class="nav">
-          <button class="ghost menu-btn" id="tocbtn" type="button" style="border-radius:18px;padding:0 12px;height:36px">Contents</button>
-          <button id="prev" type="button" aria-label="Previous day">‹</button>
-          <button class="today" id="today" type="button">Today</button>
-          <button id="next" type="button" aria-label="Next day">›</button>
-        </div>
+        <button class="iconbtn" id="lockTop" type="button" aria-label="Close and lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+      </div>
+      <div class="daynav">
+        <button id="prev" type="button" aria-label="Previous day">‹ Previous</button>
+        <button class="today" id="today" type="button">Today</button>
+        <button id="next" type="button" aria-label="Next day">Next ›</button>
       </div>
       <div class="sheet"><textarea id="text" aria-label="Diary page" spellcheck="true" placeholder="Dear diary…"></textarea></div>
       <div class="bar">
@@ -265,7 +321,12 @@ async function loadEntries(){
   entries = {}; plain = {};
   for (const {id, data} of await idb.list()) if (typeof id === "string" && id.startsWith("e-") && data) entries[id.slice(2)] = data;
 }
-function showBook(){ $("cover").hidden = true; $("book").hidden = false; current = todayKey(); renderToc(); openDay(current); showBackupState(); }
+function showBook(){ $("cover").hidden = true; $("book").hidden = false; current = todayKey(); renderToc(); openDay(current); showBackupState(); unsealAll(); }
+/* Open every page once so the contents list can show a preview line */
+async function unsealAll(){
+  for (const k of Object.keys(entries)) if (live(k) && plain[k] == null) { try { plain[k] = await unseal(entries[k]); } catch(e) {} }
+  if (key) renderToc();
+}
 
 $("lock").onclick = async () => {
   await flush(); await writeLinked();
@@ -292,7 +353,9 @@ function renderToc(){
     b.type = "button"; b.setAttribute("aria-current", k === current);
     const d = document.createElement("span"); d.className = "d"; d.textContent = (k === todayKey() ? "Today · " : "") + fmtShort.format(parseKey(k));
     const w = document.createElement("span"); w.className = "w"; w.textContent = plain[k] != null && live(k) ? wc(plain[k]) + " w" : (live(k) ? "sealed" : "blank");
-    b.append(d, w); b.onclick = () => { $("book").classList.remove("show-toc"); openDay(k); };
+    const pv = document.createElement("span"); const txt = (plain[k] || "").replace(/—[^—\n]*—/g, "").replace(/\s+/g, " ").trim();
+    pv.className = "pv" + (txt ? "" : " dim"); pv.textContent = txt ? txt.slice(0, 140) : (live(k) ? "Sealed" : "Nothing written yet");
+    b.append(d, w, pv); b.onclick = () => { $("book").classList.remove("show-toc"); openDay(k); };
     li.append(b); ul.append(li);
   }
 }
@@ -315,6 +378,8 @@ $("prev").onclick = () => openDay(shift(current, -1));
 $("next").onclick = () => openDay(shift(current, 1));
 $("today").onclick = () => openDay(todayKey());
 $("tocbtn").onclick = () => $("book").classList.toggle("show-toc");
+$("tocClose").onclick = () => $("book").classList.remove("show-toc");
+$("lockTop").onclick = () => $("lock").click();
 $("text").addEventListener("input", () => { plain[current] = $("text").value; setStatus("Writing…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1000); });
 
 let pending = Promise.resolve();
@@ -358,7 +423,7 @@ async function showBackupState(){
       " Android also backs this diary up to your Google account on its own.";
   }
   if (linked) text = "Auto-saving to " + linked.name + ". " + text;
-  el.className = "where " + ((driveOn && !driveErr) || (days != null && days <= 7) ? "ok" : "warn");
+  el.className = "where " + ((driveOn && !driveErr) || (days != null && days <= 7) || (isNative && (days == null || days <= 30)) ? "ok" : "warn");
   el.textContent = text;
 }
 
@@ -389,7 +454,7 @@ $("exportBtn").onclick = async () => {
 
 /* Desktop Chrome/Edge: write straight into a file inside your Google Drive folder */
 let linkedHandle = null, linkTimer = null;
-if (window.showSaveFilePicker) $("linkBtn").hidden = false;
+if (window.showSaveFilePicker && !isNative) $("linkBtn").hidden = false;
 $("linkBtn").onclick = async () => {
   try {
     const h = await window.showSaveFilePicker({suggestedName:"saz-diary-backup.json", types:[{description:"Diary backup", accept:{"application/json":[".json"]}}]});
