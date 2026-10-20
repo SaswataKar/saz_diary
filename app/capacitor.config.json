@@ -1,0 +1,9 @@
+{
+  "appId": "com.saz.diary",
+  "appName": "Saz's Diary",
+  "webDir": "www",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "force",
+    "allowMixedContent": false
+  }
+}

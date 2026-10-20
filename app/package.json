@@ -1,0 +1,22 @@
+{
+  "name": "saz-diary-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Saz's Diary as an Android app",
+  "scripts": {
+    "prepare-android": "node prepare.mjs"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "7.0.1",
+    "@capacitor/android": "7.6.9",
+    "@capacitor/core": "7.6.9",
+    "@capacitor/filesystem": "7.1.9",
+    "@capacitor/share": "7.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/kalam": "5.3.0",
+    "@fontsource/young-serif": "5.3.0"
+  }
+}
