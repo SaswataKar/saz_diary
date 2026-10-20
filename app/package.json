@@ -17,6 +17,7 @@
     "@capacitor/cli": "7.6.9",
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/kalam": "5.3.0",
+    "@fontsource/tiro-bangla": "5.3.0",
     "@fontsource/young-serif": "5.3.0"
   }
 }
