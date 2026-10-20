@@ -756,7 +756,7 @@ async function guardGate(){
     $("lockform").hidden = true; $("fpstep").hidden = false; $("fpmsg").textContent = "Touch the sensor to wake the runes.";
     const ask = async () => {
       try {
-        const r = await NG.openSecret({iv: sealed.iv, ct: sealed.ct});
+        const r = await NG.openSecret({iv: sealed.iv, ct: sealed.ct, title: "Open " + coverName()});
         spellInner = JSON.parse(r.text); spellFails = 0; gatePassed = true;
         showSpellStep();
       } catch(e) {

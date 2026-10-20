@@ -416,6 +416,7 @@ public class GuardPlugin extends Plugin {
     @PluginMethod
     public void openSecret(PluginCall call) {
         final String iv = call.getString("iv", ""), ct = call.getString("ct", "");
+        final String title = call.getString("title", "Open your diary");
         getActivity().runOnUiThread(() -> {
             try {
                 SecretKey key = existingKey();
@@ -427,7 +428,7 @@ public class GuardPlugin extends Plugin {
                     call.reject("Fingerprints changed on this phone", "invalidated");
                     return;
                 }
-                withFingerprint(call, c, "Open Saz's Diary", ok -> {
+                withFingerprint(call, c, title, ok -> {
                     byte[] pt = ok.doFinal(Base64.decode(ct, Base64.NO_WRAP));
                     JSObject out = new JSObject();
                     out.put("text", new String(pt, StandardCharsets.UTF_8));
