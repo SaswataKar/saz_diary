@@ -266,9 +266,7 @@ function renderToc(){
     b.type = "button"; b.setAttribute("aria-current", k === current);
     const d = document.createElement("span"); d.className = "d"; d.textContent = (k === todayKey() ? "Today · " : "") + fmtShort.format(parseKey(k));
     const w = document.createElement("span"); w.className = "w"; w.textContent = plain[k] != null && live(k) ? wc(plain[k]) + " w" : (live(k) ? "sealed" : "blank");
-    const pv = document.createElement("span"); const txt = (plain[k] || "").replace(/—[^—\n]*—/g, "").replace(/\s+/g, " ").trim();
-    pv.className = "pv" + (txt ? "" : " dim"); pv.textContent = txt ? txt.slice(0, 140) : (live(k) ? "Sealed" : "Nothing written yet");
-    b.append(d, w, pv); b.onclick = () => { $("book").classList.remove("show-toc"); turnTo(k); };
+    b.append(d, w); b.onclick = () => { $("book").classList.remove("show-toc"); turnTo(k); };
     li.style.setProperty("--i", Math.min(ul.children.length, 12)); li.append(b); ul.append(li);
   }
 }
