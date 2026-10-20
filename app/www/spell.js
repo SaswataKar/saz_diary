@@ -16,7 +16,50 @@
     [[-.7,0,.7,0],[0,-.7,0,.7],[-.45,-.45,.45,.45],[.45,-.45,-.45,.45]]
   ];
 
+  /* A rune for every letter, for the owner's initial (door centre and spell-circle centre).
+     Old Norse runes where they exist; medieval runes for C, Q, V, X, Y. */
+  const LETTER = {
+    A: [[-.3,-1,-.3,1],[-.3,-1,.4,-.45],[-.3,-.45,.4,.1]],
+    B: [[-.35,-1,-.35,1],[-.35,-1,.35,-.5],[.35,-.5,-.35,0],[-.35,0,.35,.5],[.35,.5,-.35,1]],
+    C: [[-.1,-1,-.1,1],[-.1,-1,.45,-.6],[.45,-.6,.45,-.15]],
+    D: [[-.5,-1,-.5,1],[.5,-1,.5,1],[-.5,-1,.5,1],[.5,-1,-.5,1]],
+    E: [[-.45,-1,-.45,1],[.45,-1,.45,1],[-.45,-1,0,-.4],[0,-.4,.45,-1]],
+    F: [[0,-1,0,1],[0,-.55,.55,-1],[0,-.05,.55,-.5]],
+    G: [[-.55,-1,.55,1],[.55,-1,-.55,1]],
+    H: [[-.45,-1,-.45,1],[.45,-1,.45,1],[-.45,-.35,.45,.25]],
+    I: [[0,-1,0,1]],
+    J: [[-.1,-.85,-.5,-.25],[-.5,-.25,-.1,.35],[.1,-.35,.5,.25],[.5,.25,.1,.85]],
+    K: [[.45,-.85,-.4,0],[-.4,0,.45,.85]],
+    L: [[-.2,-1,-.2,1],[-.2,-1,.45,-.4]],
+    M: [[-.45,-1,-.45,1],[.45,-1,.45,1],[-.45,-1,.45,-.2],[.45,-1,-.45,-.2]],
+    N: [[0,-1,0,1],[-.4,-.3,.4,.2]],
+    O: [[0,-1,.5,-.4],[.5,-.4,0,.2],[0,.2,-.5,-.4],[-.5,-.4,0,-1],[-.2,-.05,-.6,1],[.2,-.05,.6,1]],
+    P: [[-.4,-1,-.4,1],[-.4,-1,.35,-.55],[.35,-.55,.35,-.2],[-.4,1,.35,.55],[.35,.55,.35,.2]],
+    Q: [[0,-1,.55,0],[.55,0,0,1],[0,1,-.55,0],[-.55,0,0,-1]],
+    R: [[-.35,-1,-.35,1],[-.35,-1,.35,-.55],[.35,-.55,-.35,-.1],[-.35,-.1,.4,1]],
+    S: [[.45,-1,-.45,-.27],[-.45,-.27,.45,.27],[.45,.27,-.45,1]],
+    T: [[0,1,0,-1],[0,-1,-.55,-.4],[0,-1,.55,-.4]],
+    U: [[-.45,1,-.45,-1],[-.45,-1,.45,-.4],[.45,-.4,.45,1]],
+    V: [[-.45,1,-.45,-1],[-.45,-1,.45,-.4],[.45,-.4,.45,1],[0,.05,0,.45]],
+    W: [[-.35,-1,-.35,1],[-.35,-1,.35,-.55],[.35,-.55,-.35,-.1]],
+    X: [[-.5,-1,.5,1],[.5,-1,-.5,1],[0,-1,0,1]],
+    Y: [[0,-1,0,1],[0,.2,-.6,.9],[0,.2,.6,.9]],
+    Z: [[0,1,0,-1],[0,-.15,-.6,-.85],[0,-.15,.6,-.85]]
+  };
+  let ownerRune = null;     // strokes for the centre rune; null = the default star
+  function letterOf(name) {
+    let t = (name || "").trim();
+    if (t && !/^[A-Za-z]/.test(t) && root.toBanglish) t = root.toBanglish(t).trim();
+    const c = t.charAt(0).toUpperCase();
+    return LETTER[c] ? c : "";
+  }
+
   function strokeRune(cx, x, y, s, i) {
+    if (i === 8 && ownerRune) {
+      cx.beginPath();
+      for (const [a, b, c, d] of ownerRune) { cx.moveTo(x + a * s, y + b * s); cx.lineTo(x + c * s, y + d * s); }
+      cx.stroke(); return;
+    }
     cx.beginPath();
     for (const [a, b, c, d] of RUNES[i]) { cx.moveTo(x + a * s, y + b * s); cx.lineTo(x + c * s, y + d * s); }
     if (i === 8) { cx.moveTo(x + s * .95, y); cx.arc(x, y, s * .95, 0, Math.PI * 2); }
@@ -174,6 +217,10 @@
   }
 
   /* ---------- Rune vault door ---------- */
+  function coreRunePath() {
+    const strokes = ownerRune || LETTER.S, s = 26;
+    return strokes.map(([a, b, c, e]) => `M${(a * s).toFixed(1)} ${(b * s).toFixed(1)}L${(c * s).toFixed(1)} ${(e * s).toFixed(1)}`).join("");
+  }
   function vaultHTML() {
     const ring = (n, r, s, off) => Array.from({length: n}, (_, k) => {
       const a = (k / n) * 360 + off;
@@ -195,7 +242,7 @@
       <g class="ring r3"><circle r="72" fill="#2a312b" stroke="rgba(214,173,87,.45)" stroke-width="2"/>
         ${Array.from({length: 8}, (_, k) => `<path transform="rotate(${k * 45})" d="M0 -70 L0 -50" stroke="rgba(214,173,87,.6)" stroke-width="2"/>`).join("")}</g>
       <circle class="core" r="40" fill="url(#vCore)" stroke="rgba(0,0,0,.4)" stroke-width="4"/>
-      <path class="core-rune" d="M12 -26 L-12 -7 L12 7 L-12 26"/>
+      <path class="core-rune" d="${coreRunePath()}"/>
       <line class="seam" x1="0" y1="-200" x2="0" y2="200"/>
     </svg>`;
     return `<div class="vault-half left">${svg}</div><div class="vault-half right">${svg}</div><div class="vault-light"></div>`;
@@ -222,10 +269,13 @@
         el.classList.remove("unbolt");  await wait(350);
         el.classList.remove("turning"); await wait(500);
       },
-      hide() { el.hidden = true; el.className = "vault"; }
+      hide() { el.hidden = true; el.className = "vault"; },
+      refreshRune() { el.querySelectorAll(".core-rune").forEach(p => p.setAttribute("d", coreRunePath())); }
     };
   }
 
+  root.setOwnerRune = name => { const c = letterOf(name); ownerRune = c ? LETTER[c] : null; return c; };
+  root.runeLetters = LETTER;
   root.SpellPad = SpellPad;
   root.Vault = Vault;
 })(window);

@@ -248,3 +248,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .vault.unbolt .core-rune{stroke:#fff3cf;filter:drop-shadow(0 0 10px #ffd27a)}
 .vault .seam{stroke:rgba(255,220,140,0);stroke-width:2;transition:stroke .4s}
 .vault.unbolt .seam{stroke:rgba(255,220,140,.95);filter:drop-shadow(0 0 6px #ffd27a)}
+
+/* name on the cover */
+.namerow input{flex:1;min-width:0;height:44px;box-sizing:border-box;padding:0 12px;border-radius:8px;border:1px solid color-mix(in srgb,var(--ink) 24%,transparent);
+  background:color-mix(in srgb,var(--paper-hi) 80%,transparent);color:var(--ink);font:18px var(--f-display)}
+.namerow .ghost{flex:none;padding:0 14px}
+.lockform #ownerName{font-style:normal}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Saz's Diary</title>
+<title>Diary</title>
 <meta name="theme-color" content="#1d3a30">
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="spellbook.css">
@@ -16,9 +16,9 @@
       <svg class="tl" viewBox="0 0 44 44"><path d="M3 40V18C3 9 9 3 18 3h22" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 40V21c0-7 5-12 12-12h19" fill="none" stroke="currentColor" stroke-width=".9" opacity=".7"/><circle cx="9" cy="9" r="2.6" fill="currentColor"/><path d="M15 15c4-4 9-3 9 1s-5 4-6 1" fill="none" stroke="currentColor" stroke-width="1.1"/></svg><svg class="tr" viewBox="0 0 44 44"><path d="M3 40V18C3 9 9 3 18 3h22" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 40V21c0-7 5-12 12-12h19" fill="none" stroke="currentColor" stroke-width=".9" opacity=".7"/><circle cx="9" cy="9" r="2.6" fill="currentColor"/><path d="M15 15c4-4 9-3 9 1s-5 4-6 1" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
       <svg class="bl" viewBox="0 0 44 44"><path d="M3 40V18C3 9 9 3 18 3h22" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 40V21c0-7 5-12 12-12h19" fill="none" stroke="currentColor" stroke-width=".9" opacity=".7"/><circle cx="9" cy="9" r="2.6" fill="currentColor"/><path d="M15 15c4-4 9-3 9 1s-5 4-6 1" fill="none" stroke="currentColor" stroke-width="1.1"/></svg><svg class="br" viewBox="0 0 44 44"><path d="M3 40V18C3 9 9 3 18 3h22" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 40V21c0-7 5-12 12-12h19" fill="none" stroke="currentColor" stroke-width=".9" opacity=".7"/><circle cx="9" cy="9" r="2.6" fill="currentColor"/><path d="M15 15c4-4 9-3 9 1s-5 4-6 1" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
     </div>
-    <div class="seal" id="seal" aria-hidden="true"><span>S</span></div>
+    <div class="seal" id="seal" aria-hidden="true"><span id="sealInitial">✦</span></div>
     <div class="sub">Private · Sealed · Offline</div>
-    <h1>Saz's Diary</h1>
+    <h1 id="coverTitle">Diary</h1>
     <div class="gstep" id="gstep" hidden>
       <button class="btn-google" id="gsignin" type="button">Continue with Google</button>
       <div class="msg" id="gmsg">Sign in with your Gmail so the diary backs up to your Google Drive by itself. Next you'll set or enter your passphrase.</div>
@@ -35,6 +35,7 @@
       <button class="restore" id="spellPass" type="button">Use passphrase instead</button>
     </div>
     <form class="lockform" id="lockform" autocomplete="off">
+      <input id="ownerName" type="text" placeholder="Your name, for the cover" aria-label="Your name" maxlength="24" autocomplete="given-name" hidden>
       <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
       <input id="pass2" type="password" placeholder="Type it again" aria-label="Confirm passphrase" hidden>
       <button class="btn-brass" id="lockbtn" type="submit">Opening…</button>
@@ -65,6 +66,7 @@
         </div>
         <div class="card" id="secCard" hidden>
           <span class="eyebrow">Security</span>
+          <div class="backup namerow"><input id="ownerEdit" type="text" maxlength="24" aria-label="Name on the cover"><button class="ghost" id="ownerSave" type="button">Save name</button></div>
           <div class="where" id="fpState"></div>
           <div class="backup"><button class="ghost" id="spellBtn" type="button">Set up a spell</button></div>
           <div class="where" id="spellState"></div>
@@ -157,9 +159,27 @@ async function seal(text, k = key){ const iv = crypto.getRandomValues(new Uint8A
   return {iv: b64(iv), ct: b64(await crypto.subtle.encrypt({name:"AES-GCM", iv}, k, enc.encode(text)))}; }
 async function unseal(box, k = key){ return dec.decode(await crypto.subtle.decrypt({name:"AES-GCM", iv: unb64(box.iv)}, k, unb64(box.ct))); }
 
+/* ---------- whose diary ---------- */
+let ownerName = "";
+const coverName = () => ownerName ? ownerName + "\u2019s Diary" : "Diary";
+function applyOwner(){
+  $("coverTitle").textContent = coverName(); document.title = coverName();
+  const t = (ownerName || "").trim();
+  $("sealInitial").textContent = t ? t.charAt(0).toUpperCase() : "\u2726";
+  if (window.setOwnerRune) setOwnerRune(ownerName);
+  try { if (vault && vault.refreshRune) vault.refreshRune(); } catch(_) {}   // vault may not exist yet on first paint
+  const oe = document.getElementById("ownerEdit"); if (oe) oe.value = ownerName;
+}
+async function loadOwner(){
+  ownerName = (await idb.get("meta:owner").catch(() => "")) || "";
+  if (!ownerName && lockDoc) { ownerName = "Saz"; await idb.set("meta:owner", ownerName).catch(() => {}); }   // diaries made before names existed
+  applyOwner();
+}
+
 /* ---------- lock ---------- */
 async function boot(){
   lockDoc = await idb.get("lock");
+  await loadOwner();
   driveOn = !!(await idb.get("meta:drive").catch(() => false));
   lastSync = (await idb.get("meta:lastBackup").catch(() => 0)) || 0;
   if (driveOn && navigator.onLine && !NDA) loadGsi().catch(() => {});
@@ -168,6 +188,7 @@ async function boot(){
   $("gstep").hidden = !askGoogle; $("lockform").hidden = askGoogle;
   const first = !lockDoc;
   $("pass2").hidden = !first; $("pass2").required = first;
+  $("ownerName").hidden = !first; $("ownerName").required = first;
   $("restoreFirst").hidden = !first || askGoogle;
   $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
   $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : (driveOn && gEmail ? "Backing up to " + gEmail : "");
@@ -184,6 +205,9 @@ $("lockform").addEventListener("submit", async e => {
   try {
     if (!lockDoc) {
       if (p !== $("pass2").value) { msg.textContent = "The two passphrases don't match."; return; }
+      const nm = $("ownerName").value.trim();
+      if (!nm) { msg.textContent = "Add your name for the cover."; return; }
+      ownerName = nm; await idb.set("meta:owner", ownerName); applyOwner();
       const salt = crypto.getRandomValues(new Uint8Array(16));
       key = await deriveKey(p, salt);
       lockDoc = {salt: b64(salt), check: await seal(CHECK), created: Date.now()};
@@ -195,7 +219,7 @@ $("lockform").addEventListener("submit", async e => {
       catch(_) { key = null; msg.textContent = "That passphrase doesn't open this diary."; return; }
     }
     sessionPass = p;
-    $("pass").value = $("pass2").value = "";
+    $("pass").value = $("pass2").value = ""; $("ownerName").value = "";
     await loadEntries(); showBook();
     reconnectLinkedFile();
     if (tokenP) tokenP.then(t => { if (t) syncNow(); }); else if (driveOn) syncNow();
@@ -298,7 +322,7 @@ window.addEventListener("online", () => { if (driveOn && key) { loadGsi().catch(
 window.addEventListener("offline", showBackupState);
 
 /* ---------- backups ---------- */
-function backupJSON(){ return JSON.stringify({app:"saz-diary", v:1, exported: Date.now(), lock: lockDoc, entries}); }
+function backupJSON(){ return JSON.stringify({app:"saz-diary", v:1, exported: Date.now(), owner: ownerName || undefined, lock: lockDoc, entries}); }
 const backupName = () => "saz-diary-backup-" + todayKey() + ".json";
 
 async function showBackupState(){
@@ -400,6 +424,7 @@ $("file").addEventListener("change", async () => {
   if (!b || b.app !== "saz-diary" || !b.lock || !b.entries) { (restoreMode === "fresh" ? $("lockmsg") : $("status")).textContent = "That file isn't a diary backup."; return; }
   if (restoreMode === "fresh") {
     await idb.set("lock", b.lock);
+    if (b.owner) await idb.set("meta:owner", b.owner);
     for (const [d, box] of Object.entries(b.entries)) await idb.set("e-" + d, box);
     await boot(); $("lockmsg").textContent = "Backup restored. Unlock with that diary's passphrase."; return;
   }
@@ -495,7 +520,7 @@ async function syncNow(){
       await gfetch("https://www.googleapis.com/upload/drive/v3/files/" + fileId + "?uploadType=media", {method: "PATCH", headers: {"Content-Type": "application/json"}, body});
     } else {
       const bd = "diary" + Math.random().toString(36).slice(2);
-      const meta = JSON.stringify({name: SYNC_NAME, mimeType: "application/json", description: "Encrypted backup of Saz's Diary. Unreadable without the passphrase."});
+      const meta = JSON.stringify({name: SYNC_NAME, mimeType: "application/json", description: "Encrypted diary backup. Unreadable without the passphrase."});
       const mp = "--" + bd + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + meta + "\r\n--" + bd + "\r\nContent-Type: application/json\r\n\r\n" + body + "\r\n--" + bd + "--";
       const j = await (await gfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {method: "POST", headers: {"Content-Type": "multipart/related; boundary=" + bd}, body: mp})).json();
       if (j.id) await idb.set("meta:driveFileId", j.id);
@@ -556,6 +581,7 @@ if (NDA) {
           const remote = await fetchRemote();
           if (remote && remote.app === "saz-diary" && remote.lock && remote.entries) {
             await idb.set("lock", remote.lock);
+            if (remote.owner) await idb.set("meta:owner", remote.owner);
             for (const [d, box] of Object.entries(remote.entries)) await idb.set("e-" + d, box);
             found = true;
           }
@@ -760,7 +786,7 @@ async function guardGate(){
   $("lockform").hidden = true; $("fpstep").hidden = false; $("fpmsg").textContent = "Touch the sensor to open your diary.";
   const ask = async () => {
     try {
-      await NG.verify({title: "Open Saz's Diary", subtitle: "Confirm it's you"});
+      await NG.verify({title: "Open " + coverName(), subtitle: "Confirm it's you"});
       gatePassed = true; showForm();
       $("lockmsg").textContent = "Now your passphrase" + (wrap && guard.onDeviceSpeech ? ": type it, or speak it." : ".");
       if (!(wrap && guard.onDeviceSpeech)) $("pass").focus();
@@ -789,7 +815,7 @@ if (NG) {
   $("spellPass").onclick = () => {
     if (gatePassed) return showPassForm("Type or speak your passphrase.");
     /* fingerprint not used yet: confirm with fingerprint or the phone's PIN, then passphrase */
-    NG.verify({title: "Open Saz's Diary", subtitle: "Confirm it's you"}).then(() => { gatePassed = true; showPassForm("Type or speak your passphrase."); },
+    NG.verify({title: "Open " + coverName(), subtitle: "Confirm it's you"}).then(() => { gatePassed = true; showPassForm("Type or speak your passphrase."); },
       () => { $("fpmsg").textContent = "Tap the fingerprint to try again."; });
   };
 
@@ -797,6 +823,12 @@ if (NG) {
   let setupPad = null, firstSeq = null;
   function closeSetup(){ $("spellSetup").hidden = true; firstSeq = null; }
   $("setupCancel").onclick = closeSetup;
+  $("ownerSave").onclick = async () => {
+    const nm = $("ownerEdit").value.trim();
+    if (!nm) { $("spellState").textContent = "Type a name for the cover first."; return; }
+    ownerName = nm; await idb.set("meta:owner", ownerName); applyOwner(); scheduleDrive();
+    $("spellState").textContent = "The cover now reads \u201c" + coverName() + "\u201d.";
+  };
   $("spellBtn").onclick = async () => {
     if (await idb.get("meta:spellWrap").catch(() => null)) { await idb.del("meta:spellWrap"); $("spellState").textContent = "Spell removed. You'll open with fingerprint and passphrase."; return showSecurity(); }
     if (!sessionPass) return;
