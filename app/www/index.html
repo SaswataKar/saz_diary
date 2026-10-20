@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Saz's Diary</title>
+<meta name="theme-color" content="#1f3a33">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark}}
+body{margin:0;font-size:14px}
+[hidden]{display:none!important}
+
+/* Layout: a closed leather book for the lock; opens to a two-page spread — contents on the left, the day's ruled page on the right. One page on phones. */
+:root{
+  --desk:#dfe3e1; --cover:#1f3a33; --cover-hi:#2c5047; --brass:#b08a3e;
+  --paper:#fbfaf4; --paper-edge:#e9e6da; --rule:#c9d6dc; --margin:#d9a3a3;
+  --ink:#1d2a44; --ink-soft:#5b6478; --shadow:rgba(20,30,28,.28);
+  --f-display:"Young Serif",Georgia,"Times New Roman",serif;
+  --f-hand:"Kalam","Segoe Print","Comic Sans MS",cursive;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --desk:#121615; --cover:#173029; --cover-hi:#21423a; --brass:#c9a35a;
+  --paper:#1e2224; --paper-edge:#2a2f31; --rule:#2f3c42; --margin:#6b3d3d;
+  --ink:#dfe4ee; --ink-soft:#97a0b2; --shadow:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#121615; --cover:#173029; --cover-hi:#21423a; --brass:#c9a35a;
+  --paper:#1e2224; --paper-edge:#2a2f31; --rule:#2f3c42; --margin:#6b3d3d;
+  --ink:#dfe4ee; --ink-soft:#97a0b2; --shadow:rgba(0,0,0,.55); color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--desk);color:var(--ink);font-family:var(--f-mono);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+/* ---------- Cover / lock ---------- */
+.cover{width:min(380px,100%);aspect-ratio:3/4;max-width:100%;border-radius:6px 14px 14px 6px;
+  background:radial-gradient(120% 90% at 30% 20%,var(--cover-hi),var(--cover));
+  box-shadow:inset 14px 0 0 rgba(0,0,0,.18),inset 16px 0 0 rgba(255,255,255,.04),0 24px 50px var(--shadow);
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px 28px 32px 44px;box-sizing:border-box;color:#efe6cf}
+.cover::after{content:"";position:absolute;inset:14px 14px 14px 30px;border:1px solid color-mix(in srgb,var(--brass) 55%,transparent);border-radius:4px 10px 10px 4px;pointer-events:none}
+.clasp{position:absolute;right:-10px;top:50%;transform:translateY(-50%);width:34px;height:64px;border-radius:8px;background:linear-gradient(90deg,var(--brass),#8a6a2c);box-shadow:0 4px 10px var(--shadow)}
+.cover h1{font-family:var(--f-display);font-weight:400;font-size:clamp(28px,7vw,36px);margin:0;text-align:center;text-wrap:balance;color:#f3e7c4}
+.cover .sub{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:color-mix(in srgb,#efe6cf 70%,transparent);text-align:center}
+.lockform{display:flex;flex-direction:column;gap:10px;width:100%;position:relative;z-index:1}
+.lockform input{background:rgba(0,0,0,.25);border:1px solid color-mix(in srgb,var(--brass) 60%,transparent);color:#f6efdc;border-radius:6px;padding:11px 12px;font:15px var(--f-mono);width:100%;box-sizing:border-box}
+.lockform input::placeholder{color:rgba(239,230,207,.5)}
+.btn-brass{background:var(--brass);color:#1b1a14;border:0;border-radius:6px;padding:11px;font-weight:500;letter-spacing:.04em}
+.msg{font-size:12px;line-height:1.5;color:#f0d9a8;min-height:1.5em;text-align:center}
+.note{font-size:11px;line-height:1.5;color:rgba(239,230,207,.7);text-align:center}
+
+/* ---------- Open book ---------- */
+.book{width:min(1080px,100%);height:min(720px,calc(100% - 0px));display:grid;grid-template-columns:300px 1fr;
+  background:var(--cover);border-radius:10px;padding:10px;box-sizing:border-box;box-shadow:0 26px 60px var(--shadow);gap:0}
+.page{background:var(--paper);min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
+.left{border-radius:4px 0 0 4px;box-shadow:inset -18px 0 22px -18px var(--shadow);border-right:1px solid var(--paper-edge)}
+.right{border-radius:0 4px 4px 0;box-shadow:inset 18px 0 22px -18px var(--shadow)}
+.left header{padding:22px 22px 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.left h2{font-family:var(--f-display);font-weight:400;font-size:22px;margin:0}
+.eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.toc{list-style:none;margin:0;padding:0 12px 12px;overflow:auto;flex:1}
+.toc button{width:100%;display:flex;justify-content:space-between;gap:10px;background:none;border:0;color:var(--ink);padding:8px 10px;border-radius:4px;text-align:left;font-size:13px;border-bottom:1px dotted var(--rule)}
+.toc button:hover{background:color-mix(in srgb,var(--brass) 12%,transparent)}
+.toc button[aria-current="true"]{background:color-mix(in srgb,var(--brass) 22%,transparent)}
+.toc .d{font-variant-numeric:tabular-nums}
+.toc .w{color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.toc .empty{padding:14px 10px;color:var(--ink-soft);font-size:12.5px;line-height:1.6}
+.left footer{padding:12px 22px 18px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--paper-edge)}
+.ghost{background:none;border:1px solid var(--rule);color:var(--ink);border-radius:5px;padding:8px 10px;font-size:12.5px}
+.ghost:hover{border-color:var(--brass)}
+.where{font-size:11px;color:var(--ink-soft);line-height:1.5}
+
+.dayhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 22px 6px;flex-wrap:wrap}
+.daytitle{display:flex;flex-direction:column;gap:2px;min-width:0}
+.daytitle h3{font-family:var(--f-display);font-weight:400;font-size:clamp(20px,3vw,28px);margin:0;text-wrap:balance}
+.nav{display:flex;gap:6px;align-items:center}
+.nav button{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:none;color:var(--ink);font-size:16px}
+.nav button:disabled{opacity:.35;cursor:default}
+.nav .today{width:auto;border-radius:18px;padding:0 12px;font-size:12px}
+
+.sheet{flex:1;min-height:0;position:relative;margin:4px 0 0}
+.sheet textarea{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;resize:none;border:0;outline:none;
+  background-color:transparent;color:var(--ink);font:400 20px/32px var(--f-hand);
+  padding:6px 26px 32px 64px;
+  background-image:linear-gradient(90deg,transparent 46px,var(--margin) 46px,var(--margin) 47px,transparent 47px),
+    repeating-linear-gradient(to bottom,transparent 0,transparent 31px,var(--rule) 31px,var(--rule) 32px);
+  background-attachment:local;background-position:0 6px}
+.sheet textarea::placeholder{color:var(--ink-soft);opacity:.7}
+.sheet textarea[readonly]{cursor:default}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 18px 14px;border-top:1px solid var(--paper-edge);flex-wrap:wrap}
+.mic{display:inline-flex;align-items:center;gap:8px;background:var(--cover);color:#f3e7c4;border:0;border-radius:22px;padding:9px 16px;font-size:13px}
+.mic .dot{width:9px;height:9px;border-radius:50%;background:var(--brass)}
+.mic.on .dot{background:#e0524a;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.mic.on .dot{animation:none}}
+.status{font-size:11.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.hint{font-size:11.5px;color:var(--ink-soft);max-width:44ch;line-height:1.45}
+
+.menu-btn{display:none}
+@media (max-width:760px){
+  body{padding-block:8px;align-items:stretch}
+  .book{grid-template-columns:1fr;height:100%;padding:6px}
+  .left{display:none;border-radius:4px}
+  .book.show-toc .left{display:flex}
+  .book.show-toc .right{display:none}
+  .right{border-radius:4px}
+  .menu-btn{display:inline-flex}
+  .sheet textarea{padding-left:46px;background-image:linear-gradient(90deg,transparent 32px,var(--margin) 32px,var(--margin) 33px,transparent 33px),repeating-linear-gradient(to bottom,transparent 0,transparent 31px,var(--rule) 31px,var(--rule) 32px)}
+}
+
+.backup{display:flex;flex-wrap:wrap;gap:6px}
+.backup .ghost{flex:1 1 auto}
+.ok{color:var(--ink-soft)} .warn{color:#b0563b}
+.restore{background:none;border:0;color:#efe6cf;text-decoration:underline;font-size:12px;position:relative;z-index:1}
+</style>
+</head>
+<body>
+<main id="app">
+  <section class="cover" id="cover" aria-label="Locked diary">
+    <div class="clasp" aria-hidden="true"></div>
+    <div class="sub">Private · Encrypted · Offline</div>
+    <h1>Saz's Diary</h1>
+    <form class="lockform" id="lockform" autocomplete="off">
+      <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
+      <input id="pass2" type="password" placeholder="Type it again" aria-label="Confirm passphrase" hidden>
+      <button class="btn-brass" id="lockbtn" type="submit">Opening…</button>
+      <div class="msg" id="lockmsg" role="status"></div>
+    </form>
+    <button class="restore" id="restoreFirst" type="button" hidden>Restore from a backup file</button>
+    <div class="note">Pages are sealed on this device with your passphrase. A forgotten passphrase cannot be recovered.</div>
+  </section>
+
+  <section class="book" id="book" hidden aria-label="Diary">
+    <aside class="page left">
+      <header><h2>Contents</h2><span class="eyebrow" id="count"></span></header>
+      <ul class="toc" id="toc"></ul>
+      <footer>
+        <div class="backup">
+          <button class="ghost" id="driveBtn" type="button" hidden>Connect Google Drive</button>
+          <button class="ghost" id="exportBtn" type="button">Save to Drive</button>
+          <button class="ghost" id="linkBtn" type="button" hidden>Auto-save to a Drive file</button>
+          <button class="ghost" id="importBtn" type="button">Restore</button>
+        </div>
+        <div class="where" id="backupState"></div>
+        <button class="ghost" id="lock" type="button">Close and lock</button>
+      </footer>
+    </aside>
+    <article class="page right">
+      <div class="dayhead">
+        <div class="daytitle">
+          <span class="eyebrow" id="dayno"></span>
+          <h3 id="daytitle"></h3>
+        </div>
+        <div class="nav">
+          <button class="ghost menu-btn" id="tocbtn" type="button" style="border-radius:18px;padding:0 12px;height:36px">Contents</button>
+          <button id="prev" type="button" aria-label="Previous day">‹</button>
+          <button class="today" id="today" type="button">Today</button>
+          <button id="next" type="button" aria-label="Next day">›</button>
+        </div>
+      </div>
+      <div class="sheet"><textarea id="text" aria-label="Diary page" spellcheck="true" placeholder="Dear diary…"></textarea></div>
+      <div class="bar">
+        <button class="mic" id="mic" type="button"><span class="dot"></span><span id="miclabel">Speak</span></button>
+        <span class="hint" id="hint" hidden>Voice typing isn't available on this phone. Tap your keyboard's microphone key to speak instead.</span>
+        <span class="status" id="status" role="status"></span>
+      </div>
+    </article>
+  </section>
+  <input type="file" id="file" accept=".json,application/json" hidden>
+</main>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const CHECK = "saz-diary-ok";
+
+/* ---------- IndexedDB key-value store ---------- */
+const idb = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open("saz-diary", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => {
+    const t = db.transaction("kv", mode), s = t.objectStore("kv"); const out = fn(s);
+    t.oncomplete = () => res(out && out.result); t.onerror = () => rej(t.error); }); };
+  return {
+    get: k => tx("readonly", s => s.get(k)),
+    set: (k, v) => tx("readwrite", s => { s.put(v, k); }),
+    del: k => tx("readwrite", s => { s.delete(k); }),
+    async list(){ const db = await open(); return new Promise((res, rej) => {
+      const out = [], t = db.transaction("kv"), c = t.objectStore("kv").openCursor();
+      c.onsuccess = () => { const cur = c.result; if (cur) { out.push({id: cur.key, data: cur.value}); cur.continue(); } else res(out); };
+      c.onerror = () => rej(c.error); }); }
+  };
+})();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+const live = k => !!(entries[k] && !entries[k].del);
+let key = null, lockDoc = null, entries = {}, plain = {}, current = todayKey(), saveTimer = null;
+function todayKey(d = new Date()){ const z = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+function parseKey(k){ const [y,m,d] = k.split("-").map(Number); return new Date(y, m-1, d); }
+function shift(k, n){ const d = parseKey(k); d.setDate(d.getDate()+n); return todayKey(d); }
+
+/* ---------- crypto ---------- */
+async function deriveKey(pass, salt){
+  const base = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:310000, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function seal(text, k = key){ const iv = crypto.getRandomValues(new Uint8Array(12));
+  return {iv: b64(iv), ct: b64(await crypto.subtle.encrypt({name:"AES-GCM", iv}, k, enc.encode(text)))}; }
+async function unseal(box, k = key){ return dec.decode(await crypto.subtle.decrypt({name:"AES-GCM", iv: unb64(box.iv)}, k, unb64(box.ct))); }
+
+/* ---------- lock ---------- */
+async function boot(){
+  lockDoc = await idb.get("lock");
+  driveOn = !!(await idb.get("meta:drive").catch(() => false));
+  lastSync = (await idb.get("meta:lastBackup").catch(() => 0)) || 0;
+  if (driveOn && navigator.onLine) loadGsi().catch(() => {});
+  const first = !lockDoc;
+  $("pass2").hidden = !first; $("pass2").required = first;
+  $("restoreFirst").hidden = !first;
+  $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
+  $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : "";
+}
+
+$("lockform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const tokenP = driveWake();
+  const p = $("pass").value, msg = $("lockmsg");
+  if (p.length < 6) { msg.textContent = "Use at least 6 characters."; return; }
+  $("lockbtn").disabled = true;
+  try {
+    if (!lockDoc) {
+      if (p !== $("pass2").value) { msg.textContent = "The two passphrases don't match."; return; }
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      key = await deriveKey(p, salt);
+      lockDoc = {salt: b64(salt), check: await seal(CHECK), created: Date.now()};
+      await idb.set("lock", lockDoc);
+    } else {
+      msg.textContent = "Opening…";
+      key = await deriveKey(p, unb64(lockDoc.salt));
+      try { if (await unseal(lockDoc.check) !== CHECK) throw 0; }
+      catch(_) { key = null; msg.textContent = "That passphrase doesn't open this diary."; return; }
+    }
+    sessionPass = p;
+    $("pass").value = $("pass2").value = "";
+    await loadEntries(); showBook();
+    reconnectLinkedFile();
+    if (tokenP) tokenP.then(t => { if (t) syncNow(); }); else if (driveOn) syncNow();
+  } catch(err) { msg.textContent = "Couldn't open the diary: " + (err && err.message || err); }
+  finally { $("lockbtn").disabled = false; }
+});
+let sessionPass = null;
+
+async function loadEntries(){
+  entries = {}; plain = {};
+  for (const {id, data} of await idb.list()) if (typeof id === "string" && id.startsWith("e-") && data) entries[id.slice(2)] = data;
+}
+function showBook(){ $("cover").hidden = true; $("book").hidden = false; current = todayKey(); renderToc(); openDay(current); showBackupState(); }
+
+$("lock").onclick = async () => {
+  await flush(); await writeLinked();
+  if (driveOn) await syncNow();
+  key = null; sessionPass = null; token = null; plain = {}; entries = {}; $("text").value = "";
+  $("book").hidden = true; $("cover").hidden = false; await boot(); $("lockmsg").textContent = "Locked.";
+};
+
+/* ---------- pages ---------- */
+const fmtLong = new Intl.DateTimeFormat(undefined, {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+const fmtShort = new Intl.DateTimeFormat(undefined, {day:"numeric", month:"short", year:"numeric"});
+const wc = t => (t.trim().match(/\S+/g) || []).length;
+const timeOf = ms => ms ? new Date(ms).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) : "";
+const setStatus = s => { $("status").textContent = s; };
+
+function renderToc(){
+  const ul = $("toc"); ul.textContent = "";
+  const n = Object.keys(entries).filter(live).length;
+  const keys = Object.keys(entries).filter(live); if (!keys.includes(current)) keys.push(current); keys.sort().reverse();
+  $("count").textContent = n + (n === 1 ? " page" : " pages");
+  if (!n) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No pages yet. Today's page is open. Write or speak, and it saves itself."; ul.append(li); }
+  for (const k of keys) {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-current", k === current);
+    const d = document.createElement("span"); d.className = "d"; d.textContent = (k === todayKey() ? "Today · " : "") + fmtShort.format(parseKey(k));
+    const w = document.createElement("span"); w.className = "w"; w.textContent = plain[k] != null && live(k) ? wc(plain[k]) + " w" : (live(k) ? "sealed" : "blank");
+    b.append(d, w); b.onclick = () => { $("book").classList.remove("show-toc"); openDay(k); };
+    li.append(b); ul.append(li);
+  }
+}
+async function openDay(k){
+  await flush(); current = k;
+  const d = parseKey(k), t = todayKey();
+  $("daytitle").textContent = fmtLong.format(d);
+  const first = Object.keys(entries).filter(live).sort()[0] || t;
+  $("dayno").textContent = k === t ? "Today" : (k > t ? "Not yet written" : "Day " + (Math.round((d - parseKey(first < k ? first : k)) / 864e5) + 1));
+  $("next").disabled = k >= t;
+  const ta = $("text"); ta.readOnly = k > t;
+  if (plain[k] == null) plain[k] = live(k) ? await unseal(entries[k]).catch(() => "") : "";
+  ta.value = plain[k];
+  ta.placeholder = k === t ? "Dear diary…" : "Nothing written on this day.";
+  setStatus(live(k) ? "Saved " + timeOf(entries[k].at) : "");
+  renderToc();
+  if (k === t) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); ta.scrollTop = ta.scrollHeight; }
+}
+$("prev").onclick = () => openDay(shift(current, -1));
+$("next").onclick = () => openDay(shift(current, 1));
+$("today").onclick = () => openDay(todayKey());
+$("tocbtn").onclick = () => $("book").classList.toggle("show-toc");
+$("text").addEventListener("input", () => { plain[current] = $("text").value; setStatus("Writing…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1000); });
+
+let pending = Promise.resolve();
+function flush(){
+  clearTimeout(saveTimer); saveTimer = null;
+  const k = current, text = plain[k];
+  if (!key || text == null) return pending;
+  const had = live(k);
+  if (!had && !text.trim()) return pending;
+  pending = pending.then(async () => {
+    try {
+      if (!text.trim()) { const tb = {del: true, at: Date.now()}; await idb.set("e-" + k, tb); entries[k] = tb; setStatus("Page cleared"); }
+      else { const box = await seal(text); box.at = Date.now(); await idb.set("e-" + k, box); entries[k] = box; if (k === current) setStatus("Saved " + timeOf(box.at)); }
+      if (had !== live(k)) renderToc();
+      scheduleLinked(); scheduleDrive();
+    } catch(e) { setStatus("Not saved: " + (e && e.message || e)); }
+  });
+  return pending;
+}
+window.addEventListener("pagehide", flush);
+document.addEventListener("visibilitychange", () => { if (document.hidden) { flush(); writeLinked(); if (driveOn) syncNow(); } });
+window.addEventListener("online", () => { if (driveOn && key) { loadGsi().catch(() => {}); clearTimeout(driveTimer); driveTimer = setTimeout(syncNow, 1500); } });
+window.addEventListener("offline", showBackupState);
+
+/* ---------- backups ---------- */
+function backupJSON(){ return JSON.stringify({app:"saz-diary", v:1, exported: Date.now(), lock: lockDoc, entries}); }
+const backupName = () => "saz-diary-backup-" + todayKey() + ".json";
+
+async function showBackupState(){
+  const last = (await idb.get("meta:lastBackup").catch(() => 0)) || lastSync;
+  const linked = await idb.get("meta:fileHandle").catch(() => null);
+  const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
+  $("driveBtn").textContent = driveOn ? (syncing ? "Syncing…" : "Sync now") : "Connect Google Drive";
+  const el = $("backupState");
+  let text = "";
+  if (driveOn) {
+    text = driveErr || (!navigator.onLine ? "Offline. Pages will sync to Google Drive when you're back online."
+      : lastSync ? "Synced with Google Drive at " + timeOf(lastSync) + "." : "Google Drive connected.");
+  } else {
+    text = (last ? "Last copy saved " + (days === 0 ? "today" : days + (days === 1 ? " day" : " days") + " ago") + "." : "Tap Save to Drive to keep a copy you can see in Google Drive.") +
+      " Android also backs this diary up to your Google account on its own.";
+  }
+  if (linked) text = "Auto-saving to " + linked.name + ". " + text;
+  el.className = "where " + ((driveOn && !driveErr) || (days != null && days <= 7) ? "ok" : "warn");
+  el.textContent = text;
+}
+
+const Cap = window.Capacitor, isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+const NFS = isNative && Cap.Plugins.Filesystem, NSH = isNative && Cap.Plugins.Share;
+$("exportBtn").onclick = async () => {
+  await flush();
+  if (NFS && NSH) {
+    try {
+      const w = await NFS.writeFile({path: backupName(), data: backupJSON(), directory: "CACHE", encoding: "utf8"});
+      await NSH.share({title: "Diary backup", dialogTitle: "Save your diary backup (pick Drive)", files: [w.uri]});
+      await idb.set("meta:lastBackup", Date.now()); showBackupState();
+    } catch(e) { if (!/cancel/i.test(e && e.message || "")) setStatus("Couldn't open sharing: " + (e && e.message || e)); }
+    return;
+  }
+  const data = backupJSON();
+  const file = new File([data], backupName(), {type: "application/json"});
+  try {
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      await navigator.share({files:[file], title:"Diary backup"});   // pick Google Drive in the share sheet
+    } else {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = file.name;
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+    await idb.set("meta:lastBackup", Date.now()); showBackupState();
+  } catch(e) { if (e && e.name !== "AbortError") setStatus("Backup failed: " + e.message); }
+};
+
+/* Desktop Chrome/Edge: write straight into a file inside your Google Drive folder */
+let linkedHandle = null, linkTimer = null;
+if (window.showSaveFilePicker) $("linkBtn").hidden = false;
+$("linkBtn").onclick = async () => {
+  try {
+    const h = await window.showSaveFilePicker({suggestedName:"saz-diary-backup.json", types:[{description:"Diary backup", accept:{"application/json":[".json"]}}]});
+    linkedHandle = h; await idb.set("meta:fileHandle", h); await writeLinked(); showBackupState();
+  } catch(e) { if (e && e.name !== "AbortError") setStatus("Couldn't link the file: " + e.message); }
+};
+async function reconnectLinkedFile(){
+  const h = await idb.get("meta:fileHandle").catch(() => null);
+  if (!h || !h.queryPermission) return;
+  try { let p = await h.queryPermission({mode:"readwrite"}); if (p !== "granted") p = await h.requestPermission({mode:"readwrite"}); if (p === "granted") linkedHandle = h; } catch(e){}
+  if (!linkedHandle) setStatus("Click Auto-save to reconnect your Drive file.");
+}
+function scheduleLinked(){ if (!linkedHandle) return; clearTimeout(linkTimer); linkTimer = setTimeout(writeLinked, 3000); }
+async function writeLinked(){
+  clearTimeout(linkTimer);
+  if (!linkedHandle || !key) return;
+  try { const w = await linkedHandle.createWritable(); await w.write(backupJSON()); await w.close(); await idb.set("meta:lastBackup", Date.now()); showBackupState(); }
+  catch(e) { linkedHandle = null; setStatus("Drive file not updated. Click Auto-save to reconnect."); }
+}
+
+/* Merge a backup into this diary (newest version of each day wins) */
+async function mergeBackup(b){
+  if (!b || b.app !== "saz-diary" || !b.lock || !b.entries) throw new Error("That file isn't a diary backup.");
+  let bk = key;
+  if (b.lock.salt !== lockDoc.salt) {
+    bk = await deriveKey(sessionPass, unb64(b.lock.salt));
+    let ok = false; try { ok = await unseal(b.lock.check, bk) === CHECK; } catch(_) {}
+    if (!ok) throw new Error("That diary was locked with a different passphrase.");
+    if (!Object.keys(entries).some(live)) { lockDoc = b.lock; key = bk; await idb.set("lock", lockDoc); }
+  }
+  let added = 0;
+  for (const [d, box] of Object.entries(b.entries)) {
+    if (!box || (entries[d] && (entries[d].at || 0) >= (box.at || 0))) continue;
+    const nb = (box.del || b.lock.salt === lockDoc.salt) ? box : Object.assign(await seal(await unseal(box, bk)), {at: box.at});
+    await idb.set("e-" + d, nb); entries[d] = nb; delete plain[d]; added++;
+  }
+  if (added) { renderToc(); await openDay(current); }
+  return added;
+}
+
+let restoreMode = "merge";
+$("importBtn").onclick = () => { restoreMode = "merge"; $("file").click(); };
+$("restoreFirst").onclick = () => { restoreMode = "fresh"; $("file").click(); };
+$("file").addEventListener("change", async () => {
+  const f = $("file").files[0]; $("file").value = ""; if (!f) return;
+  let b; try { b = JSON.parse(await f.text()); } catch(e) { b = null; }
+  if (!b || b.app !== "saz-diary" || !b.lock || !b.entries) { (restoreMode === "fresh" ? $("lockmsg") : $("status")).textContent = "That file isn't a diary backup."; return; }
+  if (restoreMode === "fresh") {
+    await idb.set("lock", b.lock);
+    for (const [d, box] of Object.entries(b.entries)) await idb.set("e-" + d, box);
+    await boot(); $("lockmsg").textContent = "Backup restored. Unlock with that diary's passphrase."; return;
+  }
+  try { const n = await mergeBackup(b); setStatus(n ? "Restored " + n + (n === 1 ? " page" : " pages") : "Nothing new in that backup"); scheduleDrive(); }
+  catch(e) { setStatus(e.message); }
+});
+
+/* ---------- Google Drive sync ----------
+   One sealed file (saz-diary-sync.json) in your Drive. The app can only see files it created. */
+const CLIENT_ID = "272691565972-4mi8vjf3ceus1430cqi60oojhl8ilqms.apps.googleusercontent.com";
+const SCOPE = "https://www.googleapis.com/auth/drive.file";
+const SYNC_NAME = "saz-diary-sync.json";
+let gsiReady = null, tokenClient = null, token = null, tokenExp = 0, tokenWaiters = [];
+let driveOn = false, syncing = false, syncAgain = false, driveTimer = null, lastSync = 0, driveErr = "";
+
+function loadGsi(){
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (gsiReady) return gsiReady;
+  return gsiReady = new Promise((res, rej) => {
+    const sc = document.createElement("script"); sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+    sc.onload = () => res(); sc.onerror = () => { gsiReady = null; rej(new Error("Google sign-in couldn't load")); };
+    document.head.append(sc);
+  });
+}
+const gsiLoaded = () => !!(window.google && google.accounts && google.accounts.oauth2);
+const haveToken = () => token && Date.now() < tokenExp;
+function resolveToken(t){ tokenWaiters.splice(0).forEach(w => w(t)); }
+function askToken(prompt){
+  if (!tokenClient) tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: SCOPE,
+    callback: r => {
+      if (r.error) { driveErr = "Google Drive sign-in didn't finish. Tap Sync now to try again."; showBackupState(); return resolveToken(null); }
+      if (google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) { tokenClient = null; driveErr = "Drive access wasn't allowed. Tap Sync now and tick the Google Drive box."; showBackupState(); return resolveToken(null); }
+      token = r.access_token; tokenExp = Date.now() + ((r.expires_in || 3600) - 120) * 1000; driveErr = ""; resolveToken(token);
+    },
+    error_callback: () => { driveErr = "Google Drive sign-in was closed or blocked. Tap Sync now to reconnect."; showBackupState(); resolveToken(null); }
+  });
+  const p = new Promise(r => tokenWaiters.push(r));
+  tokenClient.requestAccessToken({prompt});
+  return p;
+}
+/* Called inside the Unlock tap, so Google's quick sign-in window is allowed to open */
+function driveWake(){
+  if (!driveOn || !navigator.onLine || haveToken() || !gsiLoaded()) return null;
+  try { return askToken(""); } catch(e) { return null; }
+}
+
+$("driveBtn").onclick = async () => {
+  if (!navigator.onLine) { driveErr = "You're offline. Connect to the internet, then tap again."; return showBackupState(); }
+  if (!gsiLoaded()) { $("driveBtn").textContent = "Loading…"; try { await loadGsi(); } catch(e) { driveErr = e.message; return showBackupState(); } $("driveBtn").textContent = "Tap again to connect"; return; }
+  if (haveToken()) return syncNow();
+  const t = await askToken(driveOn && !/tick the Google Drive box/.test(driveErr) ? "" : "consent");
+  if (!t) return;
+  if (!driveOn) { driveOn = true; await idb.set("meta:drive", true); }
+  syncNow();
+};
+
+function scheduleDrive(){ if (!driveOn) return; clearTimeout(driveTimer); driveTimer = setTimeout(syncNow, 4000); }
+
+async function gfetch(url, opts = {}){
+  const res = await fetch(url, Object.assign({}, opts, {headers: Object.assign({Authorization: "Bearer " + token}, opts.headers || {})}));
+  if (!res.ok && res.status !== 404) {
+    let why = ""; try { const j = await res.json(); why = (j.error && (j.error.message || j.error.status)) || ""; } catch(_) {}
+    if (/has not been used|is disabled|accessNotConfigured/i.test(why)) why = "The Google Drive API is turned off in your Google Cloud project. Enable it, then tap Sync now.";
+    else if (/insufficient|scope/i.test(why)) why = "Drive access wasn't allowed. Tap Sync now and tick the Google Drive box.";
+    throw Object.assign(new Error(why || ("Google Drive replied " + res.status)), {status: res.status});
+  }
+  return res;
+}
+
+async function syncNow(){
+  if (!driveOn || !key) return;
+  if (!navigator.onLine) { driveErr = ""; return showBackupState(); }
+  if (!haveToken()) { driveErr = "Tap Sync now to reconnect Google Drive."; return showBackupState(); }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; showBackupState();
+  try {
+    await flush();
+    let fileId = await idb.get("meta:driveFileId");
+    if (!fileId) {
+      const q = encodeURIComponent("name='" + SYNC_NAME + "' and trashed=false");
+      const r = await (await gfetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&spaces=drive&orderBy=modifiedTime%20desc&fields=files(id)")).json();
+      fileId = r.files && r.files[0] && r.files[0].id;
+      if (fileId) await idb.set("meta:driveFileId", fileId);
+    }
+    if (fileId) {
+      const res = await gfetch("https://www.googleapis.com/drive/v3/files/" + fileId + "?alt=media");
+      if (res.status === 404) { fileId = null; await idb.del("meta:driveFileId"); }
+      else { const remote = await res.json().catch(() => null); if (remote) await mergeBackup(remote); }
+    }
+    const body = backupJSON();
+    if (fileId) {
+      await gfetch("https://www.googleapis.com/upload/drive/v3/files/" + fileId + "?uploadType=media", {method: "PATCH", headers: {"Content-Type": "application/json"}, body});
+    } else {
+      const bd = "diary" + Math.random().toString(36).slice(2);
+      const meta = JSON.stringify({name: SYNC_NAME, mimeType: "application/json", description: "Encrypted backup of Saz's Diary. Unreadable without the passphrase."});
+      const mp = "--" + bd + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + meta + "\r\n--" + bd + "\r\nContent-Type: application/json\r\n\r\n" + body + "\r\n--" + bd + "--";
+      const j = await (await gfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {method: "POST", headers: {"Content-Type": "multipart/related; boundary=" + bd}, body: mp})).json();
+      if (j.id) await idb.set("meta:driveFileId", j.id);
+    }
+    lastSync = Date.now(); await idb.set("meta:lastBackup", lastSync); driveErr = "";
+  } catch(e) {
+    if (e.status === 401) { token = null; driveErr = "Tap Sync now to reconnect Google Drive."; }
+    else if (/tick the Google Drive box/.test(e.message)) { token = null; tokenClient = null; driveErr = e.message; }
+    else driveErr = navigator.onLine ? (e.message || "Google Drive sync failed.") : "";
+  } finally {
+    syncing = false; showBackupState();
+    if (syncAgain) { syncAgain = false; scheduleDrive(); }
+  }
+}
+
+/* ---------- voice ---------- */
+const NSR = isNative && Cap.Plugins.SpeechRecognition;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function noVoice(){ $("mic").hidden = true; $("hint").hidden = false; }
+if (NSR) {
+  /* Android's recognizer stops after each sentence; keep it going until you tap stop. */
+  let want = false, base = "", committed = "", partial = "", gen = 0, idleTimer = null, idleCount = 0, ending = false, hooked = false;
+  const ta = $("text");
+  const uiOn = () => { $("mic").classList.add("on"); $("miclabel").textContent = "Listening… tap to stop"; };
+  const uiOff = () => { $("mic").classList.remove("on"); $("miclabel").textContent = "Speak"; };
+  function render(){
+    ta.value = plain[current] = base + committed + partial; ta.scrollTop = ta.scrollHeight;
+    clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500);
+  }
+  function armIdle(g, ms){ clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (g === gen) { idleCount++; endSession(g); } }, ms || 8000); }
+  function endSession(g){
+    if (g !== gen) return;
+    clearTimeout(idleTimer); ending = false; gen++;
+    if (partial.trim()) committed += partial.trim() + " ";
+    partial = ""; render();
+    if (want && idleCount < 3) setTimeout(listen, 200);
+    else { if (want) setStatus("Stopped listening after a long pause."); want = false; finish(); }
+  }
+  function finish(){
+    uiOff();
+    ta.value = plain[current] = (base + committed).trimEnd() + "\n"; flush();
+  }
+  function listen(){
+    if (!want) return;
+    const g = ++gen; partial = ""; armIdle(g);
+    NSR.start({language: navigator.language || "en-IN", partialResults: true, popup: false}).catch(() => { if (g === gen) { idleCount++; endSession(g); } });
+  }
+  $("mic").onclick = async () => {
+    if (want) { want = false; try { await NSR.stop(); } catch(e) {} const g = gen; ending = true; armIdle(g, 900); return; }
+    if (current !== todayKey()) await openDay(todayKey());
+    try { const a = await NSR.available(); if (!a.available) return noVoice(); } catch(e) { return noVoice(); }
+    try {
+      let p = await NSR.checkPermissions();
+      if (p.speechRecognition !== "granted") p = await NSR.requestPermissions();
+      if (p.speechRecognition !== "granted") { setStatus("Microphone is off for this app. Allow it in Android settings to dictate."); return; }
+    } catch(e) {}
+    if (!hooked) {
+      hooked = true;
+      await NSR.addListener("partialResults", d => {
+        const m = d && d.matches && d.matches[0]; if (m == null) return;
+        partial = m; idleCount = 0; render();
+        if (ending) endSession(gen); else armIdle(gen);
+      });
+      await NSR.addListener("listeningState", d => {
+        if (d.status === "started") { idleCount = 0; armIdle(gen); }
+        else if (d.status === "stopped") { ending = true; armIdle(gen, 1200); }
+      });
+    }
+    const stamp = "— " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + " —\n";
+    base = ta.value.replace(/\s*$/, ""); base = (base ? base + "\n\n" : "") + stamp;
+    committed = ""; partial = ""; idleCount = 0; ending = false; want = true;
+    uiOn(); render(); listen();
+  };
+} else {
+if (!SR) noVoice();
+$("mic").onclick = () => {
+  if (current !== todayKey()) openDay(todayKey());
+  if (listening) { rec && rec.stop(); return; }
+  try { rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.lang = navigator.language || "en-IN"; } catch(e) { noVoice(); return; }
+  const ta = $("text");
+  const stamp = "— " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + " —\n";
+  let base = ta.value.replace(/\s*$/, ""); base = (base ? base + "\n\n" : "") + stamp;
+  let finalText = "", heard = false;
+  rec.onstart = () => { listening = true; $("mic").classList.add("on"); $("miclabel").textContent = "Listening… tap to stop"; };
+  rec.onresult = ev => { let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript.trim() + " "; else interim += r[0].transcript; }
+    heard = true; ta.value = base + finalText + interim; plain[current] = base + finalText; ta.scrollTop = ta.scrollHeight;
+    clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500); };
+  rec.onerror = ev => { if (["not-allowed","service-not-allowed","audio-capture"].includes(ev.error)) noVoice(); };
+  rec.onend = () => { listening = false; $("mic").classList.remove("on"); $("miclabel").textContent = "Speak";
+    if (heard) { ta.value = plain[current] = (base + finalText).trimEnd() + "\n"; flush(); } };
+  try { rec.start(); } catch(e) { noVoice(); }
+};
+}
+
+boot().catch(e => { $("lockmsg").textContent = "This browser blocked local storage: " + e.message; });
+})();
+</script>
+</body>
+</html>
