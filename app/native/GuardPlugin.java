@@ -12,6 +12,16 @@ import android.os.SystemClock;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyPermanentlyInvalidatedException;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
@@ -321,6 +331,111 @@ public class GuardPlugin extends Plugin {
                 emitEnd("stopped");
             }
             call.resolve();
+        });
+    }
+
+    /* ---------------- Secrets sealed in the phone's security chip ----------------
+       An AES key lives in the Android Keystore and can only be used right after a fingerprint
+       (strong biometric), checked by the hardware itself. New fingerprints added to the phone
+       invalidate the key, so the spell has to be set up again. */
+    private static final String KEY_ALIAS = "saz_diary_spell_key";
+
+    private SecretKey newKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        if (ks.containsAlias(KEY_ALIAS)) ks.deleteEntry(KEY_ALIAS);
+        KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setUserAuthenticationRequired(true)
+            .setInvalidatedByBiometricEnrollment(true);
+        if (Build.VERSION.SDK_INT >= 30) b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+        kg.init(b.build());
+        return kg.generateKey();
+    }
+
+    private SecretKey existingKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        return ks.containsAlias(KEY_ALIAS) ? (SecretKey) ks.getKey(KEY_ALIAS, null) : null;
+    }
+
+    private interface CipherDone { void run(Cipher c) throws Exception; }
+
+    private void withFingerprint(PluginCall call, Cipher cipher, String title, CipherDone done) {
+        BiometricPrompt prompt = new BiometricPrompt((FragmentActivity) getActivity(), ContextCompat.getMainExecutor(getContext()),
+            new BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                    try {
+                        done.run(result.getCryptoObject().getCipher());
+                    } catch (Exception e) {
+                        call.reject(String.valueOf(e.getMessage()), "crypto");
+                    }
+                }
+
+                @Override
+                public void onAuthenticationError(int code, CharSequence msg) {
+                    String c = "error";
+                    if (code == BiometricPrompt.ERROR_LOCKOUT || code == BiometricPrompt.ERROR_LOCKOUT_PERMANENT) c = "lockout";
+                    else if (code == BiometricPrompt.ERROR_USER_CANCELED || code == BiometricPrompt.ERROR_NEGATIVE_BUTTON || code == BiometricPrompt.ERROR_CANCELED) c = "cancelled";
+                    call.reject(String.valueOf(msg), c);
+                }
+            });
+        BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle("Touch the fingerprint sensor")
+            .setAllowedAuthenticators(BIOMETRIC_STRONG)
+            .setNegativeButtonText("Use passphrase")
+            .build();
+        prompt.authenticate(info, new BiometricPrompt.CryptoObject(cipher));
+    }
+
+    @PluginMethod
+    public void sealSecret(PluginCall call) {
+        final String text = call.getString("text", "");
+        getActivity().runOnUiThread(() -> {
+            try {
+                Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                c.init(Cipher.ENCRYPT_MODE, newKey());
+                withFingerprint(call, c, "Seal your spell", ok -> {
+                    byte[] ct = ok.doFinal(text.getBytes(StandardCharsets.UTF_8));
+                    JSObject out = new JSObject();
+                    out.put("iv", Base64.encodeToString(ok.getIV(), Base64.NO_WRAP));
+                    out.put("ct", Base64.encodeToString(ct, Base64.NO_WRAP));
+                    call.resolve(out);
+                });
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()), "error");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void openSecret(PluginCall call) {
+        final String iv = call.getString("iv", ""), ct = call.getString("ct", "");
+        getActivity().runOnUiThread(() -> {
+            try {
+                SecretKey key = existingKey();
+                if (key == null) { call.reject("No sealed spell on this phone", "no_key"); return; }
+                Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+                try {
+                    c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)));
+                } catch (KeyPermanentlyInvalidatedException e) {
+                    call.reject("Fingerprints changed on this phone", "invalidated");
+                    return;
+                }
+                withFingerprint(call, c, "Open Saz's Diary", ok -> {
+                    byte[] pt = ok.doFinal(Base64.decode(ct, Base64.NO_WRAP));
+                    JSObject out = new JSObject();
+                    out.put("text", new String(pt, StandardCharsets.UTF_8));
+                    call.resolve(out);
+                });
+            } catch (Exception e) {
+                call.reject(String.valueOf(e.getMessage()), "error");
+            }
         });
     }
 

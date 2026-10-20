@@ -27,6 +27,12 @@
     <div class="fpstep" id="fpstep" hidden>
       <button class="fpbtn" id="fpBtn" type="button" aria-label="Open with your fingerprint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M7.5 4.9A8 8 0 0 1 20 11.5v1"/><path d="M4.2 8.6A8 8 0 0 0 4 10.5v2.3"/><path d="M8 18.5c.6-1.6 1-3.7 1-6a3 3 0 0 1 6 0c0 3-.4 5.6-1.3 7.8"/><path d="M11.9 12.5c0 3.4-.6 6.2-1.8 8.5"/><path d="M6.4 21c1-1.7 1.6-3.6 1.6-5.8v-2.7a4 4 0 0 1 8 0v1"/><path d="M17.8 16.5c-.2 1.7-.6 3.3-1.2 4.6"/></svg></button>
       <div class="msg" id="fpmsg">Touch the sensor to open your diary.</div>
+      <button class="restore" id="fpPass" type="button" hidden>Use passphrase instead</button>
+    </div>
+    <div class="spellstep" id="spellstep" hidden>
+      <canvas id="spellPad" aria-label="Draw your spell by joining the runes"></canvas>
+      <div class="msg" id="spellmsg">Draw your spell</div>
+      <button class="restore" id="spellPass" type="button">Use passphrase instead</button>
     </div>
     <form class="lockform" id="lockform" autocomplete="off">
       <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
@@ -60,6 +66,8 @@
         <div class="card" id="secCard" hidden>
           <span class="eyebrow">Security</span>
           <div class="where" id="fpState"></div>
+          <div class="backup"><button class="ghost" id="spellBtn" type="button">Set up a spell</button></div>
+          <div class="where" id="spellState"></div>
           <div class="backup"><button class="ghost" id="voiceSetup" type="button">Set up voice passphrase</button></div>
           <div class="where" id="voiceState"></div>
         </div>
@@ -90,9 +98,19 @@
       </div>
     </article>
   </section>
+  <div class="spell-setup" id="spellSetup" hidden>
+    <div class="box">
+      <h3>Draw your spell</h3>
+      <canvas id="setupPad" aria-label="Draw a spell by joining at least 4 runes"></canvas>
+      <div class="msg" id="setupMsg">Join at least 4 runes in one stroke.</div>
+      <button class="ghost" id="setupCancel" type="button">Cancel</button>
+    </div>
+  </div>
+  <div class="vault" id="vault" hidden></div>
   <input type="file" id="file" accept=".json,application/json" hidden>
 </main>
 <script src="banglish.js"></script>
+<script src="spell.js"></script>
 <script>
 (() => {
 const $ = id => document.getElementById(id);
@@ -153,7 +171,7 @@ async function boot(){
   $("restoreFirst").hidden = !first || askGoogle;
   $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
   $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : (driveOn && gEmail ? "Backing up to " + gEmail : "");
-  $("fpstep").hidden = true; $("voicePass").hidden = true;
+  $("fpstep").hidden = true; $("voicePass").hidden = true; $("fpPass").hidden = true; $("spellstep").hidden = true;
   if (NG && !askGoogle && lockDoc) await guardGate();
 }
 
@@ -200,7 +218,7 @@ async function unsealAll(){
 $("lock").onclick = async () => {
   await flush(); await writeLinked();
   if (driveOn) await syncNow();
-  key = null; sessionPass = null; token = null; plain = {}; entries = {}; $("text").value = ""; gatePassed = false;
+  key = null; sessionPass = null; token = null; plain = {}; entries = {}; $("text").value = ""; gatePassed = false; spellInner = null; $("book").classList.remove("show-toc"); $("spellSetup").hidden = true;
   await closeCover(); $("book").hidden = true; await boot(); $("lockmsg").textContent = "Locked.";
 };
 
@@ -592,9 +610,16 @@ const dust = (() => {
 })();
 window.addEventListener("resize", () => { if (!$("cover").hidden) { dust.stop(); dust.start(); } });
 
+const vault = window.Vault ? Vault($("vault")) : null;
 async function openCover(){
   const c = $("cover"), seal = $("seal");
   if (RM) { c.hidden = true; dust.stop(); return; }
+  if (vault) {
+    const r = seal.getBoundingClientRect();
+    dust.burst(r.left + r.width / 2, r.top + r.height / 2);
+    await vault.open(() => { c.hidden = true; dust.stop(); });
+    return;
+  }
   const r = seal.getBoundingClientRect();
   dust.burst(r.left + r.width / 2, r.top + r.height / 2);
   seal.classList.add("breaking"); await sleep(380);
@@ -603,6 +628,7 @@ async function openCover(){
 }
 async function closeCover(){
   const c = $("cover");
+  if (vault && !RM) { await vault.close(); c.hidden = false; dust.start(); vault.hide(); return; }
   c.hidden = false; dust.start();
   if (RM) return;
   c.classList.add("closing"); await sleep(900); c.classList.remove("closing");
@@ -668,8 +694,59 @@ const NG = isNative && Cap.Plugins.Guard;
 let gatePassed = false, guard = {biometric: "unavailable", onDeviceSpeech: false};
 const normPhrase = t => (t || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
+let spellInner = null, spellFails = 0, pad = null;
+function showSpellStep(){
+  $("fpstep").hidden = true; $("lockform").hidden = true; $("spellstep").hidden = false;
+  $("spellmsg").textContent = "Draw your spell";
+  if (!pad) {
+    pad = SpellPad($("spellPad"), async seq => {
+      if (!spellInner) return;
+      pad.enable(false); $("spellmsg").textContent = "…";
+      try {
+        const k = await deriveKey(seq, unb64(spellInner.salt));
+        const p = await unseal(spellInner.box, k);
+        pad.success(); $("spellmsg").textContent = "The runes answer.";
+        spellInner = null; $("pass").value = p; $("lockform").requestSubmit();
+      } catch(_) {
+        spellFails++; pad.enable(true);
+        if (spellFails >= 5) { spellInner = null; showPassForm("Too many tries. Use your passphrase this time."); return; }
+        pad.fizzle(); $("spellmsg").textContent = "The spell fizzled. Try again.";
+      }
+    });
+    pad.onMessage = m => { $("spellmsg").textContent = m; };
+  }
+  pad.reset();
+}
+function showPassForm(note){
+  $("spellstep").hidden = true; $("fpstep").hidden = true; $("lockform").hidden = false;
+  if (note) $("lockmsg").textContent = note;
+  $("pass").focus();
+}
 async function guardGate(){
   try { guard = await NG.status(); } catch(e) {}
+  $("spellstep").hidden = true;
+  const sealed = await idb.get("meta:spellWrap").catch(() => null);
+  if (sealed && guard.biometric === "ready" && !gatePassed) {
+    $("lockform").hidden = true; $("fpstep").hidden = false; $("fpmsg").textContent = "Touch the sensor to wake the runes.";
+    const ask = async () => {
+      try {
+        const r = await NG.openSecret({iv: sealed.iv, ct: sealed.ct});
+        spellInner = JSON.parse(r.text); spellFails = 0; gatePassed = true;
+        showSpellStep();
+      } catch(e) {
+        if (e && e.code === "invalidated") {
+          await idb.del("meta:spellWrap");
+          $("fpmsg").textContent = "Fingerprints changed on this phone, so your spell was cleared. Open with your passphrase, then set a new spell.";
+          setTimeout(guardGate, 2200); return;
+        }
+        if (e && e.code === "cancelled") { $("fpmsg").textContent = "Tap the fingerprint to try again."; $("fpPass").hidden = false; return; }
+        $("fpmsg").textContent = e && e.code === "lockout" ? "Too many tries. Wait a little, then tap the fingerprint." : "Tap the fingerprint to try again.";
+      }
+    };
+    $("fpBtn").onclick = ask;
+    setTimeout(ask, RM ? 0 : 450);
+    return;
+  }
   const wrap = await idb.get("meta:voiceWrap").catch(() => null);
   const showForm = () => {
     $("fpstep").hidden = true; $("lockform").hidden = false;
@@ -708,6 +785,46 @@ async function hearOnce(){
 }
 
 if (NG) {
+  $("fpPass").onclick = () => $("spellPass").onclick();
+  $("spellPass").onclick = () => {
+    if (gatePassed) return showPassForm("Type or speak your passphrase.");
+    /* fingerprint not used yet: confirm with fingerprint or the phone's PIN, then passphrase */
+    NG.verify({title: "Open Saz's Diary", subtitle: "Confirm it's you"}).then(() => { gatePassed = true; showPassForm("Type or speak your passphrase."); },
+      () => { $("fpmsg").textContent = "Tap the fingerprint to try again."; });
+  };
+
+  /* ----- set up / remove the spell (while the diary is open) ----- */
+  let setupPad = null, firstSeq = null;
+  function closeSetup(){ $("spellSetup").hidden = true; firstSeq = null; }
+  $("setupCancel").onclick = closeSetup;
+  $("spellBtn").onclick = async () => {
+    if (await idb.get("meta:spellWrap").catch(() => null)) { await idb.del("meta:spellWrap"); $("spellState").textContent = "Spell removed. You'll open with fingerprint and passphrase."; return showSecurity(); }
+    if (!sessionPass) return;
+    if (guard.biometric !== "ready") { $("spellState").textContent = "A spell needs a fingerprint set up on this phone."; return; }
+    $("spellSetup").hidden = false; firstSeq = null;
+    $("setupMsg").textContent = "Join at least 4 runes in one stroke.";
+    if (!setupPad) {
+      setupPad = SpellPad($("setupPad"), async seq => {
+        if (!firstSeq) { firstSeq = seq; setupPad.success(); $("setupMsg").textContent = "Now draw the same spell once more."; setTimeout(() => setupPad.reset(), 700); return; }
+        if (seq !== firstSeq) { firstSeq = null; setupPad.fizzle(); $("setupMsg").textContent = "Those didn't match. Start again: draw your spell."; return; }
+        setupPad.enable(false); $("setupMsg").textContent = "Seal it with your fingerprint…";
+        try {
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          const box = await seal(sessionPass, await deriveKey(seq, salt));
+          const r = await NG.sealSecret({text: JSON.stringify({salt: b64(salt), box})});
+          await idb.set("meta:spellWrap", {iv: r.iv, ct: r.ct});
+          setupPad.success(); $("setupMsg").textContent = "Your spell is sealed.";
+          setTimeout(() => { closeSetup(); showSecurity(); }, 1300);
+        } catch(e) {
+          firstSeq = null; setupPad.reset();
+          $("setupMsg").textContent = e && e.code === "cancelled" ? "Not sealed. Draw your spell again to retry." : "Couldn't seal the spell: " + (e && e.message || e);
+        }
+      });
+      setupPad.onMessage = m => { $("setupMsg").textContent = m; };
+    }
+    setTimeout(() => setupPad.reset(), 30);
+  };
+
   $("voicePass").onclick = async () => {
     const msg = $("lockmsg"), btn = $("voicePass");
     if (!(await micAllowed())) { msg.textContent = "Allow the microphone for this app to speak your passphrase."; return; }
@@ -736,6 +853,11 @@ if (NG) {
     $("fpState").textContent = guard.biometric === "ready" ? "Fingerprint is required every time the diary opens, then your passphrase."
       : guard.biometric === "none_enrolled" ? "No fingerprint is set up on this phone. Add one in Settings → Security, and the diary will ask for it every time."
       : "This phone has no fingerprint sensor the diary can use, so it opens with your passphrase.";
+    const sp = await idb.get("meta:spellWrap").catch(() => null);
+    $("spellBtn").textContent = sp ? "Remove spell" : "Set up a spell";
+    $("spellBtn").hidden = guard.biometric !== "ready" && !sp;
+    $("spellState").textContent = sp ? "Spell on: fingerprint, then draw your spell. The spell is sealed inside this phone's security chip."
+      : guard.biometric === "ready" ? "Draw a spell across the runes instead of typing your passphrase on this phone." : "";
     const wrap = await idb.get("meta:voiceWrap").catch(() => null);
     $("voiceSetup").textContent = wrap ? "Turn off voice passphrase" : "Set up voice passphrase";
     $("voiceSetup").hidden = !guard.onDeviceSpeech && !wrap;
