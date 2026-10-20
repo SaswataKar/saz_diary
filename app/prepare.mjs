@@ -9,15 +9,40 @@ const res = path.join(android, "app/src/main/res");
 const must = (p) => { if (!fs.existsSync(p)) throw new Error("Missing " + p + " (run `npx cap add android` first)"); return p; };
 must(res);
 
-// 1. Launcher icons (plain PNGs; drop the adaptive-icon XML so these are used everywhere)
+// 1. Launcher icon: a magical open book. Layered ("adaptive") icon for Android 8+, with a
+//    single-colour layer for themed icons on Android 13+, and classic PNGs for older phones.
 for (const d of ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]) {
   const dir = path.join(res, "mipmap-" + d);
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(`res/icon-${d}.png`, path.join(dir, "ic_launcher.png"));
   fs.copyFileSync(`res/icon-round-${d}.png`, path.join(dir, "ic_launcher_round.png"));
-  fs.copyFileSync(`res/icon-${d}.png`, path.join(dir, "ic_launcher_foreground.png"));
+  fs.copyFileSync(`res/ic-fg-${d}.png`, path.join(dir, "ic_launcher_foreground.png"));
+  fs.copyFileSync(`res/ic-bg-${d}.png`, path.join(dir, "ic_launcher_background.png"));
+  fs.copyFileSync(`res/ic-mono-${d}.png`, path.join(dir, "ic_launcher_monochrome.png"));
 }
-fs.rmSync(path.join(res, "mipmap-anydpi-v26"), { recursive: true, force: true });
+const anydpi = path.join(res, "mipmap-anydpi-v26");
+fs.mkdirSync(anydpi, { recursive: true });
+const adaptive = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>
+`;
+fs.writeFileSync(path.join(anydpi, "ic_launcher.xml"), adaptive);
+fs.writeFileSync(path.join(anydpi, "ic_launcher_round.xml"), adaptive);
+for (const dir of fs.readdirSync(res)) {                 // remove the template's own background colour/drawable
+  for (const f of ["ic_launcher_background.xml"]) fs.rmSync(path.join(res, dir, f), { force: true });
+}
+
+// 1b. App name under the icon
+const stringsPath = path.join(res, "values/strings.xml");
+if (fs.existsSync(stringsPath)) {
+  let st = fs.readFileSync(stringsPath, "utf8");
+  st = st.replace(/<string name="app_name">[^<]*<\/string>/, '<string name="app_name">Diary</string>')
+         .replace(/<string name="title_activity_main">[^<]*<\/string>/, '<string name="title_activity_main">Diary</string>');
+  fs.writeFileSync(stringsPath, st);
+}
 
 // 2. Colours, splash screen and window background in the diary's leather green
 fs.mkdirSync(path.join(res, "values"), { recursive: true });
