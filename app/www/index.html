@@ -39,7 +39,6 @@
       <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
       <input id="pass2" type="password" placeholder="Type it again" aria-label="Confirm passphrase" hidden>
       <button class="btn-brass" id="lockbtn" type="submit">Opening…</button>
-      <button class="btn-voice" id="voicePass" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg><span id="voiceLabel">Speak your passphrase</span></button>
       <div class="msg" id="lockmsg" role="status"></div>
     </form>
     <button class="restore" id="restoreFirst" type="button" hidden>Restore from a backup file</button>
@@ -70,8 +69,6 @@
           <div class="where" id="fpState"></div>
           <div class="backup"><button class="ghost" id="spellBtn" type="button">Set up a spell</button></div>
           <div class="where" id="spellState"></div>
-          <div class="backup"><button class="ghost" id="voiceSetup" type="button">Set up voice passphrase</button></div>
-          <div class="where" id="voiceState"></div>
         </div>
         <button class="ghost" id="lock" type="button">Close and lock</button>
       </footer>
@@ -192,7 +189,7 @@ async function boot(){
   $("restoreFirst").hidden = !first || askGoogle;
   $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
   $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : (driveOn && gEmail ? "Backing up to " + gEmail : "");
-  $("fpstep").hidden = true; $("voicePass").hidden = true; $("fpPass").hidden = true; $("spellstep").hidden = true;
+  $("fpstep").hidden = true; $("fpPass").hidden = true; $("spellstep").hidden = true;
   if (NG && !askGoogle && lockDoc) await guardGate();
 }
 
@@ -750,6 +747,7 @@ function showPassForm(note){
 }
 async function guardGate(){
   try { guard = await NG.status(); } catch(e) {}
+  idb.del("meta:voiceWrap").catch(() => {});      // voice passphrase was removed; don't keep its sealed copy
   $("spellstep").hidden = true;
   const sealed = await idb.get("meta:spellWrap").catch(() => null);
   if (sealed && guard.biometric === "ready" && !gatePassed) {
@@ -773,10 +771,8 @@ async function guardGate(){
     setTimeout(ask, RM ? 0 : 450);
     return;
   }
-  const wrap = await idb.get("meta:voiceWrap").catch(() => null);
   const showForm = () => {
     $("fpstep").hidden = true; $("lockform").hidden = false;
-    $("voicePass").hidden = !(wrap && guard.onDeviceSpeech);
   };
   if (guard.biometric !== "ready" || gatePassed) {
     showForm();
@@ -788,8 +784,8 @@ async function guardGate(){
     try {
       await NG.verify({title: "Open " + coverName(), subtitle: "Confirm it's you"});
       gatePassed = true; showForm();
-      $("lockmsg").textContent = "Now your passphrase" + (wrap && guard.onDeviceSpeech ? ": type it, or speak it." : ".");
-      if (!(wrap && guard.onDeviceSpeech)) $("pass").focus();
+      $("lockmsg").textContent = "Now your passphrase.";
+      $("pass").focus();
     } catch(e) {
       $("fpmsg").textContent = e && e.code === "lockout" ? "Too many tries. Wait a little, then tap the fingerprint to try again." : "Tap the fingerprint to try again.";
     }
@@ -813,9 +809,9 @@ async function hearOnce(){
 if (NG) {
   $("fpPass").onclick = () => $("spellPass").onclick();
   $("spellPass").onclick = () => {
-    if (gatePassed) return showPassForm("Type or speak your passphrase.");
+    if (gatePassed) return showPassForm("Type your passphrase.");
     /* fingerprint not used yet: confirm with fingerprint or the phone's PIN, then passphrase */
-    NG.verify({title: "Open " + coverName(), subtitle: "Confirm it's you"}).then(() => { gatePassed = true; showPassForm("Type or speak your passphrase."); },
+    NG.verify({title: "Open " + coverName(), subtitle: "Confirm it's you"}).then(() => { gatePassed = true; showPassForm("Type your passphrase."); },
       () => { $("fpmsg").textContent = "Tap the fingerprint to try again."; });
   };
 
@@ -857,27 +853,7 @@ if (NG) {
     setTimeout(() => setupPad.reset(), 30);
   };
 
-  $("voicePass").onclick = async () => {
-    const msg = $("lockmsg"), btn = $("voicePass");
-    if (!(await micAllowed())) { msg.textContent = "Allow the microphone for this app to speak your passphrase."; return; }
-    const wrap = await idb.get("meta:voiceWrap").catch(() => null);
-    if (!wrap) return;
-    btn.disabled = true; btn.classList.add("on"); $("voiceLabel").textContent = "Listening…";
-    try {
-      const heard = [...new Set((await hearOnce()).map(normPhrase).filter(Boolean))].slice(0, 4);
-      $("voiceLabel").textContent = "Checking…";
-      for (const h of heard) {
-        try {
-          const k2 = await deriveKey(h, unb64(wrap.salt));
-          const p = await unseal(wrap.box, k2);
-          $("pass").value = p; $("lockform").requestSubmit(); return;
-        } catch(_) {}
-      }
-      msg.textContent = "That didn't match your passphrase. Try again, or type it.";
-    } catch(e) {
-      msg.textContent = e && e.code === "no_match" ? "I didn't catch that. Tap and speak again." : "Voice didn't work this time. Type your passphrase instead.";
-    } finally { btn.disabled = false; btn.classList.remove("on"); $("voiceLabel").textContent = "Speak your passphrase"; }
-  };
+
 
   async function showSecurity(){
     try { guard = await NG.status(); } catch(e) {}
@@ -892,36 +868,11 @@ if (NG) {
       : guard.biometric === "ready" ? "Draw a spell across the runes instead of typing your passphrase on this phone."
       : guard.biometric === "none_enrolled" ? "To use a spell, first add a fingerprint in your phone's Settings → Security."
       : "Spells need a strong fingerprint sensor, and this phone's isn't one Android allows for sealing secrets. Fingerprint + passphrase still protect the diary.";
-    const wrap = await idb.get("meta:voiceWrap").catch(() => null);
-    $("voiceSetup").textContent = wrap ? "Turn off voice passphrase" : "Set up voice passphrase";
-    $("voiceSetup").hidden = !guard.onDeviceSpeech && !wrap;
-    $("voiceState").textContent = !guard.onDeviceSpeech ? "This phone can't recognise speech offline, so speaking the passphrase stays off. Your passphrase is never sent to the internet."
-      : wrap ? "On. You can speak your passphrase after the fingerprint. It's recognised on this phone only." : "Off. Speak your passphrase instead of typing it, recognised on this phone only.";
   }
   $("tocbtn").addEventListener("click", showSecurity);
   if (matchMedia("(min-width:761px)").matches) setTimeout(showSecurity, 0);
 
-  $("voiceSetup").onclick = async () => {
-    const st = $("voiceState"), btn = $("voiceSetup");
-    if (await idb.get("meta:voiceWrap").catch(() => null)) { await idb.del("meta:voiceWrap"); st.textContent = "Voice passphrase is off."; return showSecurity(); }
-    if (!sessionPass) return;
-    if (!(await micAllowed())) { st.textContent = "Allow the microphone for this app first."; return; }
-    btn.disabled = true; btn.textContent = "Listening… say your passphrase";
-    try {
-      const heard = (await hearOnce()).map(normPhrase);
-      const want = normPhrase(sessionPass);
-      if (want && heard.includes(want)) {
-        const salt = crypto.getRandomValues(new Uint8Array(16));
-        const k2 = await deriveKey(want, salt);
-        await idb.set("meta:voiceWrap", {salt: b64(salt), box: await seal(sessionPass, k2)});
-        st.textContent = "Voice passphrase is on.";
-      } else {
-        st.textContent = "That didn't match your passphrase. Speak it exactly as written. It works best when the passphrase is plain words with no symbols.";
-      }
-    } catch(e) {
-      st.textContent = e && e.code === "no_match" ? "I didn't catch anything. Tap and try again." : "Voice setup didn't work: " + (e && e.message || e);
-    } finally { btn.disabled = false; setTimeout(showSecurity, 2500); }
-  };
+
 
   /* Lock again if the app has been away for more than 2 minutes */
   let awayAt = 0;
