@@ -92,6 +92,7 @@
   </section>
   <input type="file" id="file" accept=".json,application/json" hidden>
 </main>
+<script src="banglish.js"></script>
 <script>
 (() => {
 const $ = id => document.getElementById(id);
@@ -774,15 +775,21 @@ if (NG) {
   });
 }
 
-/* ---------- dictation language: English or Bengali ---------- */
-let dictLangCode = (() => { try { return localStorage.getItem("dictLang"); } catch(e) { return null; } })() || (/^bn/i.test(navigator.language) ? "bn-IN" : "en-IN");
-const dictLang = () => dictLangCode;
-function showLang(){ const b = $("langBtn"); b.dataset.lang = dictLangCode; b.textContent = dictLangCode === "bn-IN" ? "বাংলা" : "EN";
-  b.setAttribute("aria-label", "Dictation language: " + (dictLangCode === "bn-IN" ? "Bengali" : "English") + ". Tap to switch."); }
+/* ---------- dictation language: English, Banglish (speak Bengali, write in English letters), or Bengali script ---------- */
+const MODES = ["en-IN", "banglish", "bn-IN"];
+const MODE_LABEL = {"en-IN": "EN", "banglish": "Banglish", "bn-IN": "বাংলা"};
+const MODE_SAY = {"en-IN": "Speak in English", "banglish": "Speak in Bengali, written in English letters (ami, tomake…)", "bn-IN": "Speak in Bengali, written in Bengali (বাংলা)"};
+let dictLangCode = (() => { try { return localStorage.getItem("dictLang"); } catch(e) { return null; } })();
+if (!MODES.includes(dictLangCode)) dictLangCode = /^bn/i.test(navigator.language) ? "banglish" : "en-IN";
+const dictLang = () => dictLangCode === "en-IN" ? "en-IN" : "bn-IN";          // what the recognizer listens for
+const dictText = t => dictLangCode === "banglish" && window.toBanglish ? window.toBanglish(t) : t;   // how it's written
+function showLang(){ const b = $("langBtn"); b.dataset.lang = dictLangCode; b.textContent = MODE_LABEL[dictLangCode];
+  b.setAttribute("aria-label", "Dictation: " + MODE_SAY[dictLangCode] + ". Tap to switch."); }
 $("langBtn").onclick = () => {
-  dictLangCode = dictLangCode === "bn-IN" ? "en-IN" : "bn-IN";
+  dictLangCode = MODES[(MODES.indexOf(dictLangCode) + 1) % MODES.length];
   try { localStorage.setItem("dictLang", dictLangCode); } catch(e) {}
-  showLang(); setStatus(dictLangCode === "bn-IN" ? "Speak in Bengali (বাংলা)" : "Speak in English");
+  showLang(); setStatus(MODE_SAY[dictLangCode]);
+  if (window.__restartDictation) window.__restartDictation();
 };
 showLang();
 
@@ -791,7 +798,82 @@ const NSR = isNative && Cap.Plugins.SpeechRecognition;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, listening = false;
 function noVoice(){ $("mic").hidden = true; $("hint").hidden = false; }
-if (NSR) {
+if (NG) {
+  /* Continuous dictation done natively (see GuardPlugin): finished sentences arrive as "dictFinal",
+     the sentence in progress as "dictPartial". Stopping waits for the last sentence before closing. */
+  let mode = "idle", base = "", committed = "", partial = "", hooked = false, lastHeard = 0, quietTimer = null, finishTimer = null;
+  const ta = $("text");
+  const uiOn = () => { $("mic").classList.add("on"); $("miclabel").textContent = "Listening… tap to stop"; };
+  const uiOff = () => { $("mic").classList.remove("on"); $("miclabel").textContent = "Speak"; };
+  function render(){
+    ta.value = plain[current] = base + committed + partial; ta.scrollTop = ta.scrollHeight; quill.write(ta.value.length);
+    clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500);
+  }
+  function finalize(note){
+    if (mode === "idle") return;
+    clearTimeout(finishTimer); clearInterval(quietTimer);
+    if (partial.trim()) committed += partial.trim() + " ";
+    partial = ""; mode = "idle"; uiOff();
+    ta.value = plain[current] = (base + committed).trimEnd() + "\n"; flush();
+    if (note) setStatus(note);
+  }
+  function stopNow(note){
+    if (mode !== "listening") return;
+    mode = "stopping"; $("mic").classList.remove("on"); $("miclabel").textContent = "Finishing…";
+    NG.stopDictation().catch(() => {});
+    finishTimer = setTimeout(() => finalize(note), 5000);   // safety net; normally "dictEnd" arrives first
+    stopNote = note;
+  }
+  let stopNote = "", restarting = false;
+  async function hook(){
+    if (hooked) return; hooked = true;
+    await NG.addListener("dictPartial", d => { if (mode === "idle") return; partial = dictText(d.text || ""); lastHeard = Date.now(); render(); });
+    await NG.addListener("dictFinal", d => {
+      if (mode === "idle") return;
+      const t = dictText((d.text || "").trim());
+      if (t) committed += t + " ";
+      partial = ""; lastHeard = Date.now(); render();
+    });
+    await NG.addListener("dictEnd", () => {
+      if (restarting && mode === "listening") {           // language switched: carry on in the new language
+        restarting = false;
+        if (partial.trim()) { committed += partial.trim() + " "; partial = ""; render(); }
+        NG.startDictation({language: dictLang()}).catch(() => { mode = "stopping"; finalize("Dictation stopped. Tap Speak to carry on."); });
+        return;
+      }
+      if (mode !== "idle") finalize(stopNote);
+    });
+    await NG.addListener("dictError", d => {
+      const why = d.code === "permission" ? "Microphone is off for this app. Allow it in Android settings."
+        : d.code === "network" ? "Speech needs an internet connection right now, or the offline speech pack for this language."
+        : "Dictation stopped. Tap Speak to carry on.";
+      if (mode !== "idle") { stopNote = why; } else setStatus(why);
+    });
+  }
+  $("mic").onclick = async () => {
+    if (mode === "listening") return stopNow("");
+    if (mode === "stopping") return;
+    if (current !== todayKey()) await openDay(todayKey());
+    if (!(await micAllowed())) { setStatus("Microphone is off for this app. Allow it in Android settings to dictate."); return; }
+    await hook();
+    const stamp = "— " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + " —\n";
+    base = ta.value.replace(/\s*$/, ""); base = (base ? base + "\n\n" : "") + stamp;
+    committed = ""; partial = ""; stopNote = ""; mode = "listening"; lastHeard = Date.now();
+    uiOn(); render();
+    try { await NG.startDictation({language: dictLang()}); }
+    catch(e) { mode = "stopping"; finalize("Dictation isn't available on this phone. Use your keyboard's microphone key instead."); return; }
+    clearInterval(quietTimer);
+    quietTimer = setInterval(() => { if (mode === "listening" && Date.now() - lastHeard > 90000) stopNow("Stopped listening after a long pause."); }, 5000);
+  };
+  /* switching language while listening: finish this part, then carry on in the new language */
+  window.__restartDictation = () => {
+    if (mode !== "listening" || restarting) return;
+    restarting = true;
+    NG.stopDictation().catch(() => { restarting = false; });
+  };
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopNow(""); });
+  window.__stopDictation = () => stopNow("");
+} else if (NSR) {
   /* Android's recognizer stops after each sentence, so the app restarts it until you tap stop.
      mode: "idle" (nothing running), "listening", or "stopping" (waiting briefly for the last words). */
   let mode = "idle", base = "", committed = "", partial = "", gen = 0, idleTimer = null, idleCount = 0, ending = false, hooked = false;
