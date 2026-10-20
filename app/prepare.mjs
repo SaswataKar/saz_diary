@@ -64,7 +64,7 @@ fs.writeFileSync(manifestPath, manifest);
 
 // 4. Google sign-in for Drive backup (native code lives in app/native)
 const javaDir = path.join(android, "app/src/main/java/com/saz/diary");
-for (const f of ["DriveAuthPlugin.java", "MainActivity.java"]) fs.copyFileSync(path.join("native", f), path.join(javaDir, f));
+for (const f of ["DriveAuthPlugin.java", "GuardPlugin.java", "MainActivity.java"]) fs.copyFileSync(path.join("native", f), path.join(javaDir, f));
 
 // 5. Version number from the build run, and release signing from environment variables
 const gradlePath = must(path.join(android, "app/build.gradle"));
@@ -94,6 +94,7 @@ android {
 gradle += `
 dependencies {
     implementation "com.google.android.gms:play-services-auth:21.3.0"
+    implementation "androidx.biometric:biometric:1.1.0"
 }
 `;
 fs.writeFileSync(gradlePath, gradle);

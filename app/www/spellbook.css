@@ -190,3 +190,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .quill::after{content:"";position:absolute;left:2px;top:72px;width:5px;height:5px;border-radius:50%;background:var(--ink);opacity:0}
 .quill.writing::after{animation:inkDrop .44s ease-out infinite}
 @keyframes inkDrop{0%{opacity:.8;transform:scale(.4)}100%{opacity:0;transform:scale(1.6)}}
+
+/* ---------- Fingerprint and spoken passphrase ---------- */
+.fpstep{display:flex;flex-direction:column;align-items:center;gap:14px}
+.fpbtn{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;color:var(--gold-hi);
+  background:radial-gradient(circle at 40% 30%,rgba(255,255,255,.08),rgba(0,0,0,.25));border:1.5px solid color-mix(in srgb,var(--gold) 70%,transparent);
+  animation:fpGlow 2.4s ease-in-out infinite}
+.fpbtn svg{width:54px;height:54px}
+@keyframes fpGlow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 40%,transparent)}50%{box-shadow:0 0 0 12px transparent,0 0 24px color-mix(in srgb,var(--gold) 35%,transparent)}}
+.btn-voice{display:flex;align-items:center;justify-content:center;gap:10px;border-radius:6px;padding:12px;background:rgba(0,0,0,.22);
+  border:1px solid color-mix(in srgb,var(--gold) 55%,transparent);color:#f3e3bb;font:17px var(--f-sc);letter-spacing:.06em}
+.btn-voice svg{width:20px;height:20px;color:var(--gold-hi)}
+.btn-voice.on{animation:aura 1.6s ease-out infinite}
+.btn-voice:disabled{opacity:.85}

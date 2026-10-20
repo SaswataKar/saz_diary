@@ -24,10 +24,15 @@
       <div class="msg" id="gmsg">Sign in with your Gmail so the diary backs up to your Google Drive by itself. Next you'll set or enter your passphrase.</div>
       <button class="restore" id="gskip" type="button">Use without Google for now</button>
     </div>
+    <div class="fpstep" id="fpstep" hidden>
+      <button class="fpbtn" id="fpBtn" type="button" aria-label="Open with your fingerprint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M7.5 4.9A8 8 0 0 1 20 11.5v1"/><path d="M4.2 8.6A8 8 0 0 0 4 10.5v2.3"/><path d="M8 18.5c.6-1.6 1-3.7 1-6a3 3 0 0 1 6 0c0 3-.4 5.6-1.3 7.8"/><path d="M11.9 12.5c0 3.4-.6 6.2-1.8 8.5"/><path d="M6.4 21c1-1.7 1.6-3.6 1.6-5.8v-2.7a4 4 0 0 1 8 0v1"/><path d="M17.8 16.5c-.2 1.7-.6 3.3-1.2 4.6"/></svg></button>
+      <div class="msg" id="fpmsg">Touch the sensor to open your diary.</div>
+    </div>
     <form class="lockform" id="lockform" autocomplete="off">
       <input id="pass" type="password" placeholder="Passphrase" aria-label="Passphrase" required minlength="6">
       <input id="pass2" type="password" placeholder="Type it again" aria-label="Confirm passphrase" hidden>
       <button class="btn-brass" id="lockbtn" type="submit">Opening…</button>
+      <button class="btn-voice" id="voicePass" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg><span id="voiceLabel">Speak your passphrase</span></button>
       <div class="msg" id="lockmsg" role="status"></div>
     </form>
     <button class="restore" id="restoreFirst" type="button" hidden>Restore from a backup file</button>
@@ -51,6 +56,12 @@
           <button class="ghost" id="importBtn" type="button">Restore</button>
         </div>
         <div class="where" id="backupState"></div>
+        </div>
+        <div class="card" id="secCard" hidden>
+          <span class="eyebrow">Security</span>
+          <div class="where" id="fpState"></div>
+          <div class="backup"><button class="ghost" id="voiceSetup" type="button">Set up voice passphrase</button></div>
+          <div class="where" id="voiceState"></div>
         </div>
         <button class="ghost" id="lock" type="button">Close and lock</button>
       </footer>
@@ -140,6 +151,8 @@ async function boot(){
   $("restoreFirst").hidden = !first || askGoogle;
   $("lockbtn").textContent = first ? "Create my diary" : "Unlock";
   $("lockmsg").textContent = first ? "Choose a passphrase only you know, or restore a backup." : (driveOn && gEmail ? "Backing up to " + gEmail : "");
+  $("fpstep").hidden = true; $("voicePass").hidden = true;
+  if (NG && !askGoogle && lockDoc) await guardGate();
 }
 
 $("lockform").addEventListener("submit", async e => {
@@ -185,7 +198,7 @@ async function unsealAll(){
 $("lock").onclick = async () => {
   await flush(); await writeLinked();
   if (driveOn) await syncNow();
-  key = null; sessionPass = null; token = null; plain = {}; entries = {}; $("text").value = "";
+  key = null; sessionPass = null; token = null; plain = {}; entries = {}; $("text").value = ""; gatePassed = false;
   await closeCover(); $("book").hidden = true; await boot(); $("lockmsg").textContent = "Locked.";
 };
 
@@ -646,6 +659,118 @@ const quill = (() => {
   };
 })();
 $("text").addEventListener("scroll", () => quill.rest());
+
+/* ---------- fingerprint and spoken passphrase (Android app) ---------- */
+const NG = isNative && Cap.Plugins.Guard;
+let gatePassed = false, guard = {biometric: "unavailable", onDeviceSpeech: false};
+const normPhrase = t => (t || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+async function guardGate(){
+  try { guard = await NG.status(); } catch(e) {}
+  const wrap = await idb.get("meta:voiceWrap").catch(() => null);
+  const showForm = () => {
+    $("fpstep").hidden = true; $("lockform").hidden = false;
+    $("voicePass").hidden = !(wrap && guard.onDeviceSpeech);
+  };
+  if (guard.biometric !== "ready" || gatePassed) {
+    showForm();
+    if (guard.biometric === "none_enrolled" && !gatePassed) $("lockmsg").textContent = "Add a fingerprint in your phone's Settings so the diary asks for it every time.";
+    return;
+  }
+  $("lockform").hidden = true; $("fpstep").hidden = false; $("fpmsg").textContent = "Touch the sensor to open your diary.";
+  const ask = async () => {
+    try {
+      await NG.verify({title: "Open Saz's Diary", subtitle: "Confirm it's you"});
+      gatePassed = true; showForm();
+      $("lockmsg").textContent = "Now your passphrase" + (wrap && guard.onDeviceSpeech ? ": type it, or speak it." : ".");
+      if (!(wrap && guard.onDeviceSpeech)) $("pass").focus();
+    } catch(e) {
+      $("fpmsg").textContent = e && e.code === "lockout" ? "Too many tries. Wait a little, then tap the fingerprint to try again." : "Tap the fingerprint to try again.";
+    }
+  };
+  $("fpBtn").onclick = ask;
+  setTimeout(ask, RM ? 0 : 450);
+}
+
+async function micAllowed(){
+  const SRP = Cap.Plugins.SpeechRecognition;
+  try {
+    let p = SRP ? await SRP.checkPermissions() : {speechRecognition: "granted"};
+    if (p.speechRecognition !== "granted" && SRP) p = await SRP.requestPermissions();
+    return p.speechRecognition === "granted";
+  } catch(e) { return true; }
+}
+async function hearOnce(){
+  return (await NG.hear({language: navigator.language || "en-IN"})).matches || [];
+}
+
+if (NG) {
+  $("voicePass").onclick = async () => {
+    const msg = $("lockmsg"), btn = $("voicePass");
+    if (!(await micAllowed())) { msg.textContent = "Allow the microphone for this app to speak your passphrase."; return; }
+    const wrap = await idb.get("meta:voiceWrap").catch(() => null);
+    if (!wrap) return;
+    btn.disabled = true; btn.classList.add("on"); $("voiceLabel").textContent = "Listening…";
+    try {
+      const heard = [...new Set((await hearOnce()).map(normPhrase).filter(Boolean))].slice(0, 4);
+      $("voiceLabel").textContent = "Checking…";
+      for (const h of heard) {
+        try {
+          const k2 = await deriveKey(h, unb64(wrap.salt));
+          const p = await unseal(wrap.box, k2);
+          $("pass").value = p; $("lockform").requestSubmit(); return;
+        } catch(_) {}
+      }
+      msg.textContent = "That didn't match your passphrase. Try again, or type it.";
+    } catch(e) {
+      msg.textContent = e && e.code === "no_match" ? "I didn't catch that. Tap and speak again." : "Voice didn't work this time. Type your passphrase instead.";
+    } finally { btn.disabled = false; btn.classList.remove("on"); $("voiceLabel").textContent = "Speak your passphrase"; }
+  };
+
+  async function showSecurity(){
+    try { guard = await NG.status(); } catch(e) {}
+    $("secCard").hidden = false;
+    $("fpState").textContent = guard.biometric === "ready" ? "Fingerprint is required every time the diary opens, then your passphrase."
+      : guard.biometric === "none_enrolled" ? "No fingerprint is set up on this phone. Add one in Settings → Security, and the diary will ask for it every time."
+      : "This phone has no fingerprint sensor the diary can use, so it opens with your passphrase.";
+    const wrap = await idb.get("meta:voiceWrap").catch(() => null);
+    $("voiceSetup").textContent = wrap ? "Turn off voice passphrase" : "Set up voice passphrase";
+    $("voiceSetup").hidden = !guard.onDeviceSpeech && !wrap;
+    $("voiceState").textContent = !guard.onDeviceSpeech ? "This phone can't recognise speech offline, so speaking the passphrase stays off. Your passphrase is never sent to the internet."
+      : wrap ? "On. You can speak your passphrase after the fingerprint. It's recognised on this phone only." : "Off. Speak your passphrase instead of typing it, recognised on this phone only.";
+  }
+  $("tocbtn").addEventListener("click", showSecurity);
+  if (matchMedia("(min-width:761px)").matches) setTimeout(showSecurity, 0);
+
+  $("voiceSetup").onclick = async () => {
+    const st = $("voiceState"), btn = $("voiceSetup");
+    if (await idb.get("meta:voiceWrap").catch(() => null)) { await idb.del("meta:voiceWrap"); st.textContent = "Voice passphrase is off."; return showSecurity(); }
+    if (!sessionPass) return;
+    if (!(await micAllowed())) { st.textContent = "Allow the microphone for this app first."; return; }
+    btn.disabled = true; btn.textContent = "Listening… say your passphrase";
+    try {
+      const heard = (await hearOnce()).map(normPhrase);
+      const want = normPhrase(sessionPass);
+      if (want && heard.includes(want)) {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const k2 = await deriveKey(want, salt);
+        await idb.set("meta:voiceWrap", {salt: b64(salt), box: await seal(sessionPass, k2)});
+        st.textContent = "Voice passphrase is on.";
+      } else {
+        st.textContent = "That didn't match your passphrase. Speak it exactly as written. It works best when the passphrase is plain words with no symbols.";
+      }
+    } catch(e) {
+      st.textContent = e && e.code === "no_match" ? "I didn't catch anything. Tap and try again." : "Voice setup didn't work: " + (e && e.message || e);
+    } finally { btn.disabled = false; setTimeout(showSecurity, 2500); }
+  };
+
+  /* Lock again if the app has been away for more than 2 minutes */
+  let awayAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) awayAt = Date.now();
+    else if (key && awayAt && Date.now() - awayAt > 2 * 60 * 1000) $("lock").click();
+  });
+}
 
 /* ---------- voice ---------- */
 const NSR = isNative && Cap.Plugins.SpeechRecognition;
