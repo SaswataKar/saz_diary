@@ -709,6 +709,23 @@ const quill = (() => {
   };
 })();
 $("text").addEventListener("scroll", () => quill.rest());
+/* When the keyboard opens and the page gets shorter, keep the line you're typing in view */
+let lastH = window.innerHeight;
+window.addEventListener("resize", () => {
+  const ta = $("text"), h = window.innerHeight, shrank = h < lastH; lastH = h;
+  if (!shrank || document.activeElement !== ta) return;
+  setTimeout(() => {
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 34;
+    const before = ta.value.slice(0, ta.selectionEnd);
+    const probe = document.createElement("div");
+    const cs = getComputedStyle(ta);
+    Object.assign(probe.style, {position: "absolute", visibility: "hidden", left: "-9999px", top: "0", whiteSpace: "pre-wrap", overflowWrap: "break-word",
+      width: ta.clientWidth + "px", font: cs.font, lineHeight: cs.lineHeight, padding: cs.padding, boxSizing: cs.boxSizing, letterSpacing: cs.letterSpacing});
+    probe.textContent = before + "\u200b"; document.body.append(probe);
+    const caretY = probe.scrollHeight; probe.remove();
+    if (caretY > ta.scrollTop + ta.clientHeight - lh * .5 || caretY < ta.scrollTop + lh) ta.scrollTop = Math.max(0, caretY - ta.clientHeight + lh * 1.5);
+  }, 60);
+});
 
 /* ---------- fingerprint and spoken passphrase (Android app) ---------- */
 const NG = isNative && Cap.Plugins.Guard;

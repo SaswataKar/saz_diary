@@ -264,3 +264,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .mic .lvl i:nth-child(4){height:calc(4px + var(--lvl,0) * 6px)}
 .mic.waiting{animation:none;opacity:.8}
 .mic.waiting .lvl i{height:4px}
+
+/* keyboard open (short screen): give the page more room */
+@media (max-height:560px){
+  .daynav,.flourish,.dayhead .eyebrow{display:none}
+  .dayhead{padding-top:calc(env(safe-area-inset-top,0px) + 4px)}
+  .daytitle h3{font-size:20px}
+  .bar{padding-block:6px}
+  .mic{padding-block:7px}
+}
