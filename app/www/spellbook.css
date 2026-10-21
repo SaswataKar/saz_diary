@@ -254,3 +254,13 @@ button{font:inherit;color:inherit;cursor:pointer}
   background:color-mix(in srgb,var(--paper-hi) 80%,transparent);color:var(--ink);font:18px var(--f-display)}
 .namerow .ghost{flex:none;padding:0 14px}
 .lockform #ownerName{font-style:normal}
+
+/* live voice level on the Speak button */
+.mic .lvl{display:none;align-items:center;gap:2px;height:16px;margin-left:2px}
+.mic.on .lvl{display:inline-flex}
+.mic .lvl i{width:3px;border-radius:2px;background:var(--gold-hi);height:calc(4px + var(--lvl,0) * 12px);transition:height .1s linear}
+.mic .lvl i:nth-child(2){height:calc(4px + var(--lvl,0) * 16px)}
+.mic .lvl i:nth-child(3){height:calc(4px + var(--lvl,0) * 10px)}
+.mic .lvl i:nth-child(4){height:calc(4px + var(--lvl,0) * 6px)}
+.mic.waiting{animation:none;opacity:.8}
+.mic.waiting .lvl i{height:4px}

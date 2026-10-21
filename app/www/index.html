@@ -90,7 +90,7 @@
       </div>
       <div class="sheet"><textarea id="text" aria-label="Diary page" spellcheck="true" placeholder="Dear diary…"></textarea><div class="quill" id="quill" aria-hidden="true"><svg viewBox="0 0 56 68"><path class="vane" d="M53 2C40 3 25 12 16 27c-4 7-6 14-7 21l-1 6 5-3c9-3 18-10 25-19-4 1-8 1-11 0 8-3 15-9 19-16-3 1-6 1-9 0 6-4 10-9 12-14z"/><path class="barbs" d="M44 9c-7 5-13 12-18 20M38 15c-5 4-9 9-13 15M47 12l-8 6M43 22l-7 4M36 33l-7 3" /><path class="shaft" d="M52 3C38 15 24 32 11 52L4 63"/><path class="nib" d="M4 63l-2 4 4-2 2-5z"/></svg></div></div>
       <div class="bar">
-        <button class="mic" id="mic" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 2.5C14 3 8.5 7.5 6 14l-1.2 3.3 1.9.7L8 14.6c3.6-.4 7.2-2.6 9.3-5.7-1.6.3-3 .2-4.2-.3 2.6-.6 4.9-2.2 6.4-4.4.4-.6.7-1.1 1-1.7z" fill="currentColor"/><path d="M4.5 21.5l2.2-3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span id="miclabel">Speak</span></button>
+        <button class="mic" id="mic" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 2.5C14 3 8.5 7.5 6 14l-1.2 3.3 1.9.7L8 14.6c3.6-.4 7.2-2.6 9.3-5.7-1.6.3-3 .2-4.2-.3 2.6-.6 4.9-2.2 6.4-4.4.4-.6.7-1.1 1-1.7z" fill="currentColor"/><path d="M4.5 21.5l2.2-3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span id="miclabel">Speak</span><span class="lvl" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
         <button class="lang" id="langBtn" type="button" aria-label="Dictation language">EN</button>
         <span class="hint" id="hint" hidden>Voice typing isn't available on this phone. Tap your keyboard's microphone key to speak instead.</span>
         <span class="status" id="status" role="status"></span>
@@ -909,7 +909,7 @@ if (NG) {
   let mode = "idle", base = "", committed = "", partial = "", hooked = false, lastHeard = 0, quietTimer = null, finishTimer = null;
   const ta = $("text");
   const uiOn = () => { $("mic").classList.add("on"); $("miclabel").textContent = "Listening… tap to stop"; };
-  const uiOff = () => { $("mic").classList.remove("on"); $("miclabel").textContent = "Speak"; };
+  const uiOff = () => { $("mic").classList.remove("on", "waiting"); $("mic").style.setProperty("--lvl", 0); $("miclabel").textContent = "Speak"; };
   function render(){
     ta.value = plain[current] = base + committed + partial; ta.scrollTop = ta.scrollHeight; quill.write(ta.value.length);
     clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500);
@@ -939,6 +939,18 @@ if (NG) {
       if (t) committed += t + " ";
       partial = ""; lastHeard = Date.now(); render();
     });
+    let noted = false;
+    await NG.addListener("dictState", d => {
+      if (mode !== "listening") return;
+      $("mic").classList.toggle("waiting", d.state === "paused");
+      $("miclabel").textContent = d.state === "paused" ? "One moment…" : "Listening… tap to stop";
+      if (d.state === "listening" && !noted) {
+        noted = true;
+        setStatus(d.engine === "on-device" ? "Listening on this phone" + (d.continuous ? ", continuously" : "")
+          : "Listening" + (d.continuous ? ", continuously" : ", sentence by sentence"));
+      }
+    });
+    await NG.addListener("dictLevel", d => { if (mode === "listening") $("mic").style.setProperty("--lvl", (d.level || 0).toFixed(2)); });
     await NG.addListener("dictEnd", () => {
       if (restarting && mode === "listening") {           // language switched: carry on in the new language
         restarting = false;

@@ -186,21 +186,53 @@ public class GuardPlugin extends Plugin {
        finish the sentence in progress, delivers it, then sends "dictEnd". */
     private SpeechRecognizer dict;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private boolean dictActive = false, dictRunning = false, segmented = false;
+    private boolean dictActive = false, dictRunning = false, segmented = false, onDevice = false, muted = false;
     private String dictLang = "en-IN";
-    private int quickFails = 0, dictSession = 0;
-    private long sessionStart = 0;
+    private int hardFails = 0, dictSession = 0;
+    private long sessionStart = 0, lastLevel = 0;
 
-    private void emitText(String event, Bundle b) {
+    /* Short noises often come back as a tiny low-confidence "word". Drop those instead of writing them. */
+    private boolean looksLikeNoise(String text, Bundle b) {
+        float[] conf = b.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+        if (conf == null || conf.length == 0 || conf[0] < 0) return false;          // recognizer gave no score: trust it
+        int words = text.trim().isEmpty() ? 0 : text.trim().split("\\s+").length;
+        return conf[0] < 0.12f && words <= 2;
+    }
+
+    private void emitText(String event, Bundle b, boolean isFinal) {
         ArrayList<String> m = b == null ? null : b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (m == null || m.isEmpty() || m.get(0) == null) return;
+        String text = m.get(0);
+        if (isFinal && looksLikeNoise(text, b)) text = "";
         JSObject o = new JSObject();
-        o.put("text", m.get(0));
+        o.put("text", text);
         notifyListeners(event, o);
+    }
+
+    private void state(String st) {
+        JSObject o = new JSObject();
+        o.put("state", st);
+        o.put("engine", onDevice ? "on-device" : "online");
+        o.put("continuous", segmented);
+        notifyListeners("dictState", o);
+    }
+
+    /* The system beep on every restart is distracting; mute it only while dictating. */
+    private void muteBeeps(boolean on) {
+        if (on == muted) return;
+        try {
+            android.media.AudioManager am = (android.media.AudioManager) getContext().getSystemService(android.content.Context.AUDIO_SERVICE);
+            int dir = on ? android.media.AudioManager.ADJUST_MUTE : android.media.AudioManager.ADJUST_UNMUTE;
+            for (int stream : new int[] { android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.STREAM_MUSIC }) {
+                try { am.adjustStreamVolume(stream, dir, 0); } catch (Exception ignored) {}
+            }
+            muted = on;
+        } catch (Exception ignored) {}
     }
 
     private void emitEnd(String reason) {
         dictRunning = false;
+        muteBeeps(false);
         JSObject o = new JSObject();
         o.put("reason", reason);
         notifyListeners("dictEnd", o);
@@ -213,8 +245,10 @@ public class GuardPlugin extends Plugin {
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, dictLang);
         i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
-        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+        i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, onDevice);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L);
         if (segmented && Build.VERSION.SDK_INT >= 33) {
             i.putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS);
         }
@@ -225,13 +259,15 @@ public class GuardPlugin extends Plugin {
         if (!dictActive) return;
         try {
             if (dict == null) {
-                dict = SpeechRecognizer.createSpeechRecognizer(getContext());
+                if (onDevice && Build.VERSION.SDK_INT >= 33) dict = SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
+                else dict = SpeechRecognizer.createSpeechRecognizer(getContext());
                 dict.setRecognitionListener(dictListener);
             }
             sessionStart = SystemClock.elapsedRealtime();
             dictRunning = true;
             dict.startListening(dictIntent());
         } catch (Exception e) {
+            if (onDevice) { onDevice = false; destroyDict(); restartSoon(100); return; }   // on-device engine refused: use the regular one
             JSObject o = new JSObject();
             o.put("message", String.valueOf(e.getMessage()));
             notifyListeners("dictError", o);
@@ -241,6 +277,7 @@ public class GuardPlugin extends Plugin {
     }
 
     private void restartSoon(long ms) {
+        if (dictActive) state("paused");
         main.postDelayed(() -> { if (dictActive && !dictRunning) beginDict(); }, ms);
     }
 
@@ -252,20 +289,23 @@ public class GuardPlugin extends Plugin {
     }
 
     private final RecognitionListener dictListener = new RecognitionListener() {
-        @Override public void onReadyForSpeech(Bundle params) {
+        @Override public void onReadyForSpeech(Bundle params) { state("listening"); }
+        @Override public void onBeginningOfSpeech() {}
+        @Override public void onRmsChanged(float rmsdB) {
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastLevel < 110) return;
+            lastLevel = now;
             JSObject o = new JSObject();
-            o.put("state", "listening");
-            notifyListeners("dictState", o);
+            o.put("level", Math.max(0f, Math.min(1f, (rmsdB + 2f) / 12f)));
+            notifyListeners("dictLevel", o);
         }
-        @Override public void onBeginningOfSpeech() { quickFails = 0; }
-        @Override public void onRmsChanged(float rmsdB) {}
         @Override public void onBufferReceived(byte[] buffer) {}
         @Override public void onEndOfSpeech() {}
         @Override public void onEvent(int eventType, Bundle params) {}
 
-        @Override public void onPartialResults(Bundle b) { emitText("dictPartial", b); }
+        @Override public void onPartialResults(Bundle b) { emitText("dictPartial", b, false); }
 
-        @Override public void onSegmentResults(Bundle b) { quickFails = 0; emitText("dictFinal", b); }
+        @Override public void onSegmentResults(Bundle b) { hardFails = 0; emitText("dictFinal", b, true); }
 
         @Override public void onEndOfSegmentedSession() {
             dictRunning = false;
@@ -273,7 +313,8 @@ public class GuardPlugin extends Plugin {
         }
 
         @Override public void onResults(Bundle b) {
-            emitText("dictFinal", b);
+            hardFails = 0;
+            emitText("dictFinal", b, true);
             dictRunning = false;
             if (dictActive) restartSoon(0); else emitEnd("stopped");
         }
@@ -281,14 +322,20 @@ public class GuardPlugin extends Plugin {
         @Override public void onError(int error) {
             dictRunning = false;
             if (!dictActive) { emitEnd("stopped"); return; }
-            boolean quick = SystemClock.elapsedRealtime() - sessionStart < 1500;
-            if (quick) quickFails++;
-            if (segmented && quick) { segmented = false; destroyDict(); restartSoon(150); return; }   // phone can't do long sessions: fall back
-            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) { fail("permission"); return; }
-            if (quickFails > 5) { fail(error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ? "network" : "error"); return; }
+            // Silence or a stray noise: simply keep listening. Never counts as a failure.
             if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { restartSoon(0); return; }
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) { fail("permission"); return; }
+            boolean quick = SystemClock.elapsedRealtime() - sessionStart < 1500;
+            // On-device engine can't do this language (not downloaded): switch to the regular engine.
+            if (onDevice && (error == 12 || error == 13 || quick)) { onDevice = false; destroyDict(); restartSoon(100); return; }
+            // Regular engine can't do long continuous sessions: switch to sentence-by-sentence.
+            if (segmented && quick && error != SpeechRecognizer.ERROR_NETWORK && error != SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+                segmented = false; destroyDict(); restartSoon(150); return;
+            }
+            hardFails++;
+            if (hardFails > 6) { fail(error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ? "network" : "error"); return; }
             destroyDict();
-            restartSoon(300);   // busy / client / server hiccup: start a fresh recognizer
+            restartSoon(Math.min(1500, 250L * hardFails));   // busy / server hiccup: fresh recognizer, back off a little
         }
     };
 
@@ -313,7 +360,12 @@ public class GuardPlugin extends Plugin {
             destroyDict();
             dictActive = true;
             segmented = Build.VERSION.SDK_INT >= 33;
-            quickFails = 0;
+            onDevice = false;
+            if (Build.VERSION.SDK_INT >= 33) {
+                try { onDevice = SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext()); } catch (Exception ignored) {}
+            }
+            hardFails = 0;
+            muteBeeps(true);
             beginDict();
             call.resolve();
         });
@@ -445,5 +497,12 @@ public class GuardPlugin extends Plugin {
         stopRecognizer();
         dictActive = false;
         destroyDict();
+        muteBeeps(false);
+    }
+
+    @Override
+    protected void handleOnPause() {
+        if (dictActive) { dictActive = false; if (dict != null) try { dict.stopListening(); } catch (Exception ignored) {} }
+        muteBeeps(false);
     }
 }
