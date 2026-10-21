@@ -970,7 +970,7 @@ if (NG) {
   $("mic").onclick = async () => {
     if (mode === "listening") return stopNow("");
     if (mode === "stopping") return;
-    if (current !== todayKey()) await openDay(todayKey());
+    if (current > todayKey()) await openDay(todayKey());   // future days can't be written on; otherwise add to the open page
     if (!(await micAllowed())) { setStatus("Microphone is off for this app. Allow it in Android settings to dictate."); return; }
     await hook();
     const stamp = "— " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + " —\n";
@@ -1034,7 +1034,7 @@ if (NG) {
   $("mic").onclick = async () => {
     if (mode === "listening") return stopNow();
     if (mode === "stopping") return;
-    if (current !== todayKey()) await openDay(todayKey());
+    if (current > todayKey()) await openDay(todayKey());   // future days can't be written on; otherwise add to the open page
     try { const a = await NSR.available(); if (!a.available) return noVoice(); } catch(e) { return noVoice(); }
     try {
       let p = await NSR.checkPermissions();
@@ -1067,7 +1067,7 @@ if (NG) {
 } else {
 if (!SR) noVoice();
 $("mic").onclick = () => {
-  if (current !== todayKey()) openDay(todayKey());
+  if (current > todayKey()) openDay(todayKey());
   if (listening) { rec && rec.stop(); return; }
   try { rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.lang = dictLang(); } catch(e) { noVoice(); return; }
   const ta = $("text");
