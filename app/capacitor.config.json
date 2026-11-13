@@ -3,7 +3,7 @@
   "appName": "Diary",
   "webDir": "www",
   "android": {
-    "adjustMarginsForEdgeToEdge": "force",
+    "adjustMarginsForEdgeToEdge": "disable",
     "allowMixedContent": false
   }
 }
